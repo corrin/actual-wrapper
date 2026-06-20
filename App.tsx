@@ -11,8 +11,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewMessageEvent,
+  type WebViewNavigation,
+} from 'react-native-webview';
 
+import { buildActualBridgeScript } from './src/bridge/actualBridgeScript';
+import { parseBridgeMessage } from './src/bridge/messages';
 import { loadAppConfig, saveAppConfig } from './src/storage/appConfig';
 import { normalizeServerUrl, sameOrigin } from './src/web/urlPolicy';
 import type { AppConfig } from './src/types';
@@ -43,6 +49,11 @@ export default function App() {
     return requestedUrl;
   }, [config, requestedUrl]);
 
+  const bridgeScript = useMemo(
+    () => buildActualBridgeScript({ notes: 'hello world' }),
+    [],
+  );
+
   const persistServerUrl = useCallback(async () => {
     try {
       const serverUrl = normalizeServerUrl(draftUrl);
@@ -66,6 +77,15 @@ export default function App() {
     },
     [config],
   );
+
+  const handleBridgeMessage = useCallback((event: WebViewMessageEvent) => {
+    const message = parseBridgeMessage(event.nativeEvent.data);
+    if (!message) {
+      return;
+    }
+
+    console.info('[ActualWrapperBridge]', message.type, message.payload ?? {});
+  }, []);
 
   if (loading) {
     return (
@@ -103,6 +123,8 @@ export default function App() {
       <WebView
         allowsBackForwardNavigationGestures
         geolocationEnabled
+        injectedJavaScriptBeforeContentLoaded={bridgeScript}
+        onMessage={handleBridgeMessage}
         onShouldStartLoadWithRequest={shouldStartLoad}
         ref={webViewRef}
         source={{ uri: currentUrl }}
