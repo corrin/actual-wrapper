@@ -1,0 +1,36 @@
+{
+  "name": "actual-wrapper",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "expo": "^54.0.35",
+    "expo-background-task": "~1.0.10",
+    "expo-location": "~19.0.8",
+    "expo-notifications": "~0.32.17",
+    "expo-secure-store": "~15.0.8",
+    "expo-task-manager": "~14.0.9",
+    "protobufjs": "7.5.4",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-webview": "13.15.0"
+  },
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.3",
+    "@types/react": "~19.1.10",
+    "@vitejs/plugin-react": "6.0.2",
+    "babel-preset-expo": "^54.0.11",
+    "typescript": "~5.9.2",
+    "vite": "8.0.16",
+    "vitest": "4.1.9"
+  }
+}

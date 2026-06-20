@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Actual Wrapper",
+    "slug": "actual-wrapper",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "actualwrapper",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.actualwrapper.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow location access so Actual Budget can suggest nearby payees while adding transactions."
+      }
+    },
+    "android": {
+      "package": "app.actualwrapper.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-location",
+      "expo-notifications",
+      "expo-background-task"
+    ]
+  }
+}
