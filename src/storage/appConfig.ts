@@ -16,3 +16,7 @@ export async function loadAppConfig(): Promise<AppConfig | null> {
 export async function saveAppConfig(config: AppConfig): Promise<void> {
   await AsyncStorage.setItem(APP_CONFIG_KEY, JSON.stringify(config));
 }
+
+export async function clearAppConfig(): Promise<void> {
+  await AsyncStorage.removeItem(APP_CONFIG_KEY);
+}

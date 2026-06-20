@@ -21,18 +21,17 @@ npm start
 Install Expo Go on the iPhone, then run:
 
 ```sh
-HOME=/tmp/actual-wrapper-home npx expo start --host lan
+HOME=/tmp/actual-wrapper-home npx expo start --tunnel --clear
 ```
 
 Scan the QR code from Expo Go. The app should open to the setup screen, accept
-an HTTPS Actual server URL, and then load the real Actual server inside the
-WebView.
+an HTTPS Actual server URL, and then load the real Actual server full-screen
+inside the WebView.
 
-If the iPhone cannot reach the LAN URL, restart with Expo tunnel mode:
+On Actual's budget page, use the injected `App Settings` button to view wrapper
+settings or reset the saved server URL.
 
-```sh
-HOME=/tmp/actual-wrapper-home npx expo start --tunnel
-```
+Milestone notes live in [docs/milestones.md](docs/milestones.md).
 
 ## Current Focus
 

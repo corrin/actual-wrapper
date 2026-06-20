@@ -17,6 +17,14 @@ describe('parseBridgeMessage', () => {
     });
   });
 
+  it('parses app settings requests', () => {
+    expect(
+      parseBridgeMessage(
+        JSON.stringify({ type: BRIDGE_MESSAGE_TYPES.appSettingsRequested }),
+      ),
+    ).toEqual({ type: BRIDGE_MESSAGE_TYPES.appSettingsRequested });
+  });
+
   it('ignores malformed JSON', () => {
     expect(parseBridgeMessage('{')).toBeNull();
   });

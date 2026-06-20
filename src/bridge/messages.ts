@@ -1,8 +1,9 @@
 export const BRIDGE_MESSAGE_TYPES = {
   addTransactionPrefilled: 'actual-wrapper:add-transaction-prefilled',
+  appSettingsRequested: 'actual-wrapper:app-settings-requested',
   bridgeError: 'actual-wrapper:bridge-error',
   bridgeInstalled: 'actual-wrapper:bridge-installed',
-  routeIgnored: 'actual-wrapper:route-ignored',
+  settingsButtonInjected: 'actual-wrapper:settings-button-injected',
 } as const;
 
 export type BridgeMessageType =

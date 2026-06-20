@@ -16,6 +16,7 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
   window.__actualWrapperBridgeInstalled = true;
 
   var config = ${bridgeConfig};
+  var appSettingsButtonId = 'actual-wrapper-app-settings-button';
   var originalPushState = window.history.pushState;
   var originalReplaceState = window.history.replaceState;
 
@@ -36,7 +37,6 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
     try {
       var url = new URL(candidateUrl, window.location.origin);
       if (url.origin !== window.location.origin || url.pathname !== '/transactions/new') {
-        post(config.messageTypes.routeIgnored, { url: candidateUrl });
         return candidateUrl;
       }
 
@@ -56,15 +56,84 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
     }
   }
 
+  function removeAppSettingsButton() {
+    if (!window.document || !window.document.getElementById) {
+      return;
+    }
+
+    var existing = window.document.getElementById(appSettingsButtonId);
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+  }
+
+  function ensureAppSettingsButton() {
+    try {
+      if (!window.document || !window.document.body || !window.document.createElement) {
+        return;
+      }
+
+      if (window.location.pathname !== '/budget') {
+        removeAppSettingsButton();
+        return;
+      }
+
+      if (window.document.getElementById(appSettingsButtonId)) {
+        return;
+      }
+
+      var button = window.document.createElement('button');
+      button.id = appSettingsButtonId;
+      button.type = 'button';
+      button.textContent = 'App Settings';
+      button.setAttribute('aria-label', 'App Settings');
+      button.addEventListener('click', function onAppSettingsClick(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        post(config.messageTypes.appSettingsRequested, {});
+      });
+
+      button.style.position = 'fixed';
+      button.style.right = '12px';
+      button.style.bottom = '84px';
+      button.style.zIndex = '2147483647';
+      button.style.background = '#111827';
+      button.style.color = '#ffffff';
+      button.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+      button.style.borderRadius = '6px';
+      button.style.padding = '8px 10px';
+      button.style.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      button.style.boxShadow = '0 4px 10px rgba(15, 23, 42, 0.25)';
+
+      window.document.body.appendChild(button);
+      post(config.messageTypes.settingsButtonInjected, {});
+    } catch (error) {
+      post(config.messageTypes.bridgeError, { message: String(error) });
+    }
+  }
+
+  function afterRouteChange() {
+    setTimeout(ensureAppSettingsButton, 0);
+  }
+
   window.history.pushState = function patchedPushState(state, title, url) {
-    return originalPushState.call(window.history, state, title, withPrefill(url));
+    var result = originalPushState.call(window.history, state, title, withPrefill(url));
+    afterRouteChange();
+    return result;
   };
 
   window.history.replaceState = function patchedReplaceState(state, title, url) {
-    return originalReplaceState.call(window.history, state, title, withPrefill(url));
+    var result = originalReplaceState.call(window.history, state, title, withPrefill(url));
+    afterRouteChange();
+    return result;
   };
 
+  if (window.addEventListener) {
+    window.addEventListener('popstate', afterRouteChange);
+  }
+
   post(config.messageTypes.bridgeInstalled, {});
+  ensureAppSettingsButton();
   return true;
 })();
 true;
