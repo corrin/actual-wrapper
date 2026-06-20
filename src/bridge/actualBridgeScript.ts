@@ -19,6 +19,8 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
   var appSettingsButtonId = 'actual-wrapper-app-settings-button';
   var originalPushState = window.history.pushState;
   var originalReplaceState = window.history.replaceState;
+  var settingsObserver = null;
+  var retryCount = 0;
 
   function post(type, payload) {
     try {
@@ -67,45 +69,99 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
     }
   }
 
+  function getAppSettingsTarget() {
+    if (!window.document || !window.document.querySelectorAll) {
+      return null;
+    }
+
+    if (window.location.pathname !== '/budget') {
+      return null;
+    }
+
+    var monthButtons = window.document.querySelectorAll('button[data-month]');
+    var monthButton = null;
+    for (var i = 0; i < monthButtons.length; i += 1) {
+      var candidate = monthButtons[i];
+      if (!candidate.getBoundingClientRect) {
+        monthButton = candidate;
+        break;
+      }
+
+      var rect = candidate.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        monthButton = candidate;
+        break;
+      }
+    }
+
+    if (!monthButton || !monthButton.closest) {
+      return null;
+    }
+
+    var displayedMonth = monthButton.getAttribute && monthButton.getAttribute('data-month');
+    var now = new Date();
+    var currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    if (displayedMonth !== currentMonth) {
+      return null;
+    }
+
+    var title = monthButton.closest('h1');
+    var header = title && title.parentElement;
+    var rightSlot = header && header.lastElementChild;
+    if (!rightSlot) {
+      return null;
+    }
+
+    var existing = window.document.getElementById(appSettingsButtonId);
+    var childCount = rightSlot.children ? rightSlot.children.length : 0;
+    var hasOnlyExistingButton = existing && existing.parentNode === rightSlot && childCount === 1;
+    if (childCount > 0 && !hasOnlyExistingButton) {
+      return null;
+    }
+
+    return rightSlot;
+  }
+
   function ensureAppSettingsButton() {
     try {
       if (!window.document || !window.document.body || !window.document.createElement) {
         return;
       }
 
-      if (window.location.pathname !== '/budget') {
+      var target = getAppSettingsTarget();
+      if (!target) {
         removeAppSettingsButton();
         return;
       }
 
-      if (window.document.getElementById(appSettingsButtonId)) {
+      var existing = window.document.getElementById(appSettingsButtonId);
+      if (existing && existing.parentNode === target) {
         return;
       }
+      removeAppSettingsButton();
 
       var button = window.document.createElement('button');
       button.id = appSettingsButtonId;
       button.type = 'button';
-      button.textContent = 'App Settings';
+      button.textContent = '⚙';
       button.setAttribute('aria-label', 'App Settings');
+      button.setAttribute('title', 'App Settings');
       button.addEventListener('click', function onAppSettingsClick(event) {
         event.preventDefault();
         event.stopPropagation();
         post(config.messageTypes.appSettingsRequested, {});
       });
 
-      button.style.position = 'fixed';
-      button.style.right = '12px';
-      button.style.bottom = '84px';
-      button.style.zIndex = '2147483647';
-      button.style.background = '#111827';
+      button.style.background = 'transparent';
+      button.style.border = 'none';
       button.style.color = '#ffffff';
-      button.style.border = '1px solid rgba(255, 255, 255, 0.2)';
-      button.style.borderRadius = '6px';
-      button.style.padding = '8px 10px';
-      button.style.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      button.style.boxShadow = '0 4px 10px rgba(15, 23, 42, 0.25)';
+      button.style.cursor = 'pointer';
+      button.style.font = '20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      button.style.lineHeight = '1';
+      button.style.margin = '10px';
+      button.style.padding = '0';
 
-      window.document.body.appendChild(button);
+      target.appendChild(button);
       post(config.messageTypes.settingsButtonInjected, {});
     } catch (error) {
       post(config.messageTypes.bridgeError, { message: String(error) });
@@ -114,6 +170,18 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
 
   function afterRouteChange() {
     setTimeout(ensureAppSettingsButton, 0);
+  }
+
+  function retryAppSettingsButton() {
+    if (retryCount >= 20) {
+      return;
+    }
+
+    retryCount += 1;
+    ensureAppSettingsButton();
+    if (!window.document || !window.document.getElementById(appSettingsButtonId)) {
+      setTimeout(retryAppSettingsButton, 500);
+    }
   }
 
   window.history.pushState = function patchedPushState(state, title, url) {
@@ -132,8 +200,19 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
     window.addEventListener('popstate', afterRouteChange);
   }
 
+  if (window.MutationObserver && window.document && window.document.body) {
+    settingsObserver = new window.MutationObserver(afterRouteChange);
+    settingsObserver.observe(window.document.body, {
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true
+    });
+  }
+
   post(config.messageTypes.bridgeInstalled, {});
   ensureAppSettingsButton();
+  setTimeout(retryAppSettingsButton, 500);
   return true;
 })();
 true;

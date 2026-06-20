@@ -28,15 +28,16 @@ Scan the QR code from Expo Go. The app should open to the setup screen, accept
 an HTTPS Actual server URL, and then load the real Actual server full-screen
 inside the WebView.
 
-On Actual's budget page, use the injected `App Settings` button to view wrapper
-settings or reset the saved server URL.
+On Actual's current-month budget page, use the injected top-right settings icon
+to view wrapper settings or reset the saved server URL.
 
 Milestone notes live in [docs/milestones.md](docs/milestones.md).
 
 ## Current Focus
 
-The first implementation is structured around the highest-risk paths:
+The next implementation work is structured around the highest-risk paths:
 
-- WebView geolocation for Actual's existing payee-location feature.
+- A stock-Actual payee-location spike inside the WebView before adding any
+  wrapper-native GPS code.
 - Transaction detection from Actual sync messages.
 - Local notification wiring that does not trigger Actual bank sync.

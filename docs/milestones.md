@@ -11,8 +11,8 @@ Acceptance result:
 - Actual loads full-screen in the WebView.
 - User can log in and view a real budget.
 - No visible wrapper toolbar is present.
-- The wrapper adds an `App Settings` button to Actual's budget page for
-  wrapper-only settings.
+- The wrapper adds a top-right settings icon to Actual's current-month budget
+  header for wrapper-only settings.
 
 Run command:
 
@@ -43,9 +43,36 @@ Acceptance result:
 
 This proves preprocessing before Actual's add transaction page works. The current prefill is intentionally simple and lives behind a named seam for the next milestone.
 
+## Pre-Milestone 3: Stock Actual Location Spike
+
+Status: planned.
+
+Goal:
+
+- Prove whether stock Actual's experimental payee-location feature works inside
+  the wrapper WebView on a real iPhone.
+- Avoid wrapper-native GPS code if Actual's own mobile flow works.
+
+Acceptance target:
+
+- Enable Actual's `payeeLocations` experimental feature in the real Actual UI.
+- Save a known payee location through Actual's own UI.
+- Open Actual's native add transaction page from the wrapper.
+- Grant WebView geolocation permission if prompted.
+- Confirm the known nearby payee appears in Actual's payee autocomplete within
+  Actual's built-in 500m nearby threshold.
+
+Outcome rule:
+
+- If the stock Actual flow works, remove the temporary `hello world` prefill
+  spike and document the Actual setting instead of adding native GPS handoff.
+- If it fails, record the exact failure and then plan the smallest native
+  bridge needed.
+
 ## Deferred Work
 
-GPS/payee prediction starts after Milestone 2 cleanup.
+Native GPS/payee prediction is deferred until the stock Actual location spike
+proves it is needed.
 
 Notifications require native-side setup state independent of the WebView session:
 
