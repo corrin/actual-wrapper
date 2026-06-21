@@ -29,6 +29,10 @@ export async function displayLocalNotification({
   });
 }
 
+export async function setApplicationBadgeCount(count: number): Promise<void> {
+  await notifee.setBadgeCount(count);
+}
+
 async function ensureTransactionChannel(): Promise<string> {
   await notifee.createChannel({
     id: TRANSACTION_CHANNEL_ID,

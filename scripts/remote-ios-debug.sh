@@ -15,6 +15,9 @@ run_remote() {
 }
 
 case "$COMMAND" in
+  server)
+    exec node scripts/debug-server.mjs
+    ;;
   deploy)
     run_remote <<'REMOTE'
 set -euo pipefail
@@ -93,7 +96,7 @@ echo "Remote sysdiagnose artifacts: $RUN_DIR/sysdiagnose"
 REMOTE
     ;;
   *)
-    echo "Usage: $0 [deploy|pull|sysdiagnose]" >&2
+    echo "Usage: $0 [server|deploy|pull|sysdiagnose]" >&2
     exit 2
     ;;
 esac

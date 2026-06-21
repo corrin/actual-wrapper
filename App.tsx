@@ -41,15 +41,35 @@ import {
 } from './src/storage/actualCredentials';
 import {
   appendDiagnosticEvent,
+  clearDiagnosticEvents,
   clearLastSetupError,
+  loadDiagnosticEvents,
   loadLastSetupError,
   saveLastSetupError,
+  subscribeToDiagnosticEvents,
   type SetupDiagnostic,
 } from './src/storage/diagnostics';
 import { buildActualAuthSeedScript } from './src/bridge/actualAuthSeedScript';
-import { loginToActualWithPassword } from './src/auth/actualAuth';
+import {
+  getActualLoginMethods,
+  loginToActualWithPassword,
+} from './src/auth/actualAuth';
 import { normalizeServerUrl, sameOrigin } from './src/web/urlPolicy';
 import type { AppConfig } from './src/types';
+import {
+  loadDebugServerUrl,
+  saveDebugServerUrl,
+} from './src/storage/debugConfig';
+import {
+  normalizeDebugServerUrl,
+  parseDebugCommand,
+  type DebugClientMessage,
+  type DebugCommand,
+} from './src/debug/debugControl';
+import {
+  displayLocalNotification,
+  setApplicationBadgeCount,
+} from './src/notifications/localNotifications';
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -67,10 +87,14 @@ export default function App() {
   const [savingSetup, setSavingSetup] = useState(false);
   const [requestedUrl, setRequestedUrl] = useState<string | null>(null);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [debugServerUrl, setDebugServerUrl] = useState<string | null>(null);
+  const [draftDebugServerUrl, setDraftDebugServerUrl] = useState('');
+  const [debugReconnectAttempt, setDebugReconnectAttempt] = useState(0);
   const [lastSetupError, setLastSetupError] = useState<SetupDiagnostic | null>(
     null,
   );
   const webViewRef = useRef<WebView>(null);
+  const debugSocketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     void Promise.all([
@@ -78,12 +102,21 @@ export default function App() {
       loadActualCredentials(),
       loadActualCredentialPresence(),
       loadLastSetupError(),
+      loadDebugServerUrl(),
     ]).then(
-      ([storedConfig, storedCredentials, storedPresence, storedSetupError]) => {
+      ([
+        storedConfig,
+        storedCredentials,
+        storedPresence,
+        storedSetupError,
+        storedDebugServerUrl,
+      ]) => {
         setConfig(storedConfig);
         setCredentials(storedCredentials);
         setCredentialPresence(storedPresence);
         setLastSetupError(storedSetupError);
+        setDebugServerUrl(storedDebugServerUrl);
+        setDraftDebugServerUrl(storedDebugServerUrl ?? '');
         setDraftUrl(storedConfig?.serverUrl ?? '');
         setRequestedUrl(
           storedConfig && storedCredentials ? storedConfig.serverUrl : null,
@@ -320,6 +353,27 @@ export default function App() {
     });
   }, []);
 
+  const persistDebugServer = useCallback(async () => {
+    try {
+      const nextDebugServerUrl = normalizeDebugServerUrl(draftDebugServerUrl);
+      await saveDebugServerUrl(nextDebugServerUrl);
+      setDebugServerUrl(nextDebugServerUrl || null);
+      setDraftDebugServerUrl(nextDebugServerUrl);
+      await appendDiagnosticEvent({
+        area: 'debug-control',
+        data: {
+          enabled: Boolean(nextDebugServerUrl),
+          url: nextDebugServerUrl || null,
+        },
+        level: 'info',
+        message: 'debug server url saved',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      Alert.alert('Debug server URL rejected', message);
+    }
+  }, [draftDebugServerUrl]);
+
   const resetSavedServer = useCallback(async () => {
     await clearActualCredentials();
     await clearAppConfig();
@@ -338,6 +392,220 @@ export default function App() {
     setDraftEncryptionPassword('');
     setRequestedUrl(null);
   }, []);
+
+  const getDebugState = useCallback(
+    () => ({
+      currentUrl,
+      hasConfig: Boolean(config),
+      hasCredentials: Boolean(credentials),
+      lastSetupError: lastSetupError?.message ?? null,
+      requestedUrl,
+      storedCredentials: credentialPresence,
+    }),
+    [
+      config,
+      credentialPresence,
+      credentials,
+      currentUrl,
+      lastSetupError?.message,
+      requestedUrl,
+    ],
+  );
+
+  const runDebugCommand = useCallback(
+    async (command: DebugCommand) => {
+      switch (command.type) {
+        case 'get-state':
+          return getDebugState();
+        case 'clear-diagnostics':
+          await clearDiagnosticEvents();
+          await clearLastSetupError();
+          setLastSetupError(null);
+          return { cleared: true };
+        case 'reset-setup':
+          await resetSavedServer();
+          return { reset: true };
+        case 'reload-webview':
+          webViewRef.current?.reload();
+          return { reloaded: true };
+        case 'navigate-webview': {
+          const url = command.payload?.url;
+          if (typeof url !== 'string' || !url.trim()) {
+            throw new Error('navigate-webview requires payload.url.');
+          }
+          new URL(url);
+          setRequestedUrl(url);
+          return { url };
+        }
+        case 'test-notification':
+          await displayLocalNotification({
+            body: 'Debug notification from Actual Wrapper.',
+            title: 'Actual Wrapper debug',
+          });
+          return { displayed: true };
+        case 'set-badge': {
+          const count = command.payload?.count;
+          if (typeof count !== 'number' || count < 0) {
+            throw new Error('set-badge requires payload.count >= 0.');
+          }
+          await setApplicationBadgeCount(count);
+          return { count };
+        }
+        case 'run-auth-probe': {
+          if (!config) {
+            throw new Error('No Actual server is configured.');
+          }
+          const methods = await getActualLoginMethods(config.serverUrl);
+          return {
+            methods: methods.map(method => ({
+              active: Boolean(method.active),
+              method: method.method,
+            })),
+          };
+        }
+        default:
+          throw new Error(`Unknown debug command: ${command.type}`);
+      }
+    },
+    [config, getDebugState, resetSavedServer],
+  );
+
+  useEffect(() => {
+    if (!__DEV__ || !debugServerUrl) {
+      return;
+    }
+
+    let closed = false;
+    const socket = new WebSocket(debugServerUrl);
+    debugSocketRef.current = socket;
+
+    const sendDebugMessage = (message: Omit<DebugClientMessage, 'timestamp'>) => {
+      if (closed || socket.readyState !== 1) {
+        return;
+      }
+
+      socket.send(
+        JSON.stringify({
+          ...message,
+          timestamp: new Date().toISOString(),
+        } satisfies DebugClientMessage),
+      );
+    };
+
+    const unsubscribe = subscribeToDiagnosticEvents(event => {
+      sendDebugMessage({
+        payload: { event },
+        type: 'log',
+      });
+    });
+
+    socket.onopen = () => {
+      void appendDiagnosticEvent({
+        area: 'debug-control',
+        data: {
+          url: debugServerUrl,
+        },
+        level: 'info',
+        message: 'connected',
+      });
+
+      sendDebugMessage({
+        payload: {
+          app: 'Actual Wrapper',
+          state: getDebugState(),
+        },
+        type: 'hello',
+      });
+
+      void loadDiagnosticEvents().then(events => {
+        for (const event of events) {
+          sendDebugMessage({
+            payload: { event },
+            type: 'log',
+          });
+        }
+      });
+    };
+
+    socket.onmessage = event => {
+      let command: DebugCommand | null = null;
+      try {
+        command = parseDebugCommand(String(event.data));
+      } catch (error) {
+        sendDebugMessage({
+          payload: {
+            error: error instanceof Error ? error.message : String(error),
+          },
+          type: 'command-error',
+        });
+        return;
+      }
+
+      if (!command) {
+        sendDebugMessage({
+          payload: {
+            error: 'Invalid debug command.',
+          },
+          type: 'command-error',
+        });
+        return;
+      }
+
+      void runDebugCommand(command)
+        .then(result => {
+          sendDebugMessage({
+            id: command.id,
+            payload: { result },
+            type: 'command-result',
+          });
+        })
+        .catch(error => {
+          sendDebugMessage({
+            id: command.id,
+            payload: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+            type: 'command-error',
+          });
+        });
+    };
+
+    socket.onerror = () => {
+      void appendDiagnosticEvent({
+        area: 'debug-control',
+        data: {
+          url: debugServerUrl,
+        },
+        level: 'error',
+        message: 'socket error',
+      });
+    };
+
+    socket.onclose = () => {
+      if (!closed) {
+        void appendDiagnosticEvent({
+          area: 'debug-control',
+          data: {
+            url: debugServerUrl,
+          },
+          level: 'warn',
+          message: 'socket closed',
+        });
+        setTimeout(() => {
+          setDebugReconnectAttempt(attempt => attempt + 1);
+        }, 2000);
+      }
+    };
+
+    return () => {
+      closed = true;
+      unsubscribe();
+      if (debugSocketRef.current === socket) {
+        debugSocketRef.current = null;
+      }
+      socket.close();
+    };
+  }, [debugReconnectAttempt, debugServerUrl, getDebugState, runDebugCommand]);
 
   const setupContent = (
     <SafeAreaView style={styles.setup}>
@@ -385,6 +653,28 @@ export default function App() {
               {'\n'}
               {lastSetupError.message}
             </Text>
+          </>
+        ) : null}
+        {__DEV__ ? (
+          <>
+            <Text style={styles.diagnosticTitle}>Debug control</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              onChangeText={setDraftDebugServerUrl}
+              placeholder="ws://192.168.1.10:35561"
+              style={styles.input}
+              value={draftDebugServerUrl}
+            />
+            <Pressable
+              onPress={persistDebugServer}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonText}>
+                Save debug server
+              </Text>
+            </Pressable>
           </>
         ) : null}
         <Pressable
@@ -467,6 +757,32 @@ export default function App() {
                     {lastSetupError.timestamp}
                     {'\n'}
                     {lastSetupError.message}
+                  </Text>
+                </>
+              ) : null}
+              {__DEV__ ? (
+                <>
+                  <Text style={styles.settingsLabel}>Debug control</Text>
+                  <TextInput
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                    onChangeText={setDraftDebugServerUrl}
+                    placeholder="ws://192.168.1.10:35561"
+                    style={styles.input}
+                    value={draftDebugServerUrl}
+                  />
+                  <Pressable
+                    onPress={persistDebugServer}
+                    style={styles.secondaryButton}
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      Save debug server
+                    </Text>
+                  </Pressable>
+                  <Text style={styles.settingsValue}>
+                    Active:{' '}
+                    {debugServerUrl && debugSocketRef.current ? 'yes' : 'no'}
                   </Text>
                 </>
               ) : null}

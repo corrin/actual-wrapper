@@ -6,6 +6,7 @@
   "scripts": {
     "start": "react-native start",
     "android": "react-native run-android",
+    "debug:server": "node scripts/debug-server.mjs",
     "ios": "react-native run-ios",
     "test": "vitest run",
     "test:watch": "vitest",

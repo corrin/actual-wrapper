@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LAST_SETUP_ERROR_KEY = 'actual-wrapper:last-setup-error:v1';
 const DIAGNOSTIC_EVENTS_KEY = 'actual-wrapper:diagnostic-events:v1';
 const MAX_DIAGNOSTIC_EVENTS = 200;
+const diagnosticListeners = new Set<(event: DiagnosticEvent) => void>();
 
 type DiagnosticPrimitive = string | number | boolean | null;
 
@@ -84,16 +85,18 @@ export async function appendDiagnosticEvent(
   }
 
   const events = await loadDiagnosticEvents();
-  events.push({
+  const diagnosticEvent = {
     ...event,
     data: event.data ? redactDiagnosticData(event.data) : undefined,
     timestamp: new Date().toISOString(),
-  });
+  };
+  events.push(diagnosticEvent);
 
   await AsyncStorage.setItem(
     DIAGNOSTIC_EVENTS_KEY,
     JSON.stringify(events.slice(-MAX_DIAGNOSTIC_EVENTS)),
   );
+  notifyDiagnosticListeners(diagnosticEvent);
 }
 
 export async function clearDiagnosticEvents(): Promise<void> {
@@ -118,4 +121,19 @@ function redactDiagnosticData(
 
 function shouldRedactDiagnosticKey(key: string): boolean {
   return /password|token|secret|key/i.test(key);
+}
+
+export function subscribeToDiagnosticEvents(
+  listener: (event: DiagnosticEvent) => void,
+): () => void {
+  diagnosticListeners.add(listener);
+  return () => {
+    diagnosticListeners.delete(listener);
+  };
+}
+
+function notifyDiagnosticListeners(event: DiagnosticEvent): void {
+  for (const listener of diagnosticListeners) {
+    listener(event);
+  }
 }

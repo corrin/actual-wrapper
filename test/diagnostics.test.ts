@@ -6,6 +6,7 @@ import {
   loadDiagnosticEvents,
   loadLastSetupError,
   saveLastSetupError,
+  subscribeToDiagnosticEvents,
 } from '../src/storage/diagnostics';
 
 const storage = new Map<string, string>();
@@ -86,5 +87,25 @@ describe('diagnostics storage', () => {
     expect(events).toHaveLength(200);
     expect(events[0]?.data?.index).toBe(5);
     expect(events[199]?.data?.index).toBe(204);
+  });
+
+  it('notifies diagnostic subscribers when an event is appended', async () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeToDiagnosticEvents(listener);
+
+    await appendDiagnosticEvent({
+      area: 'debug-control',
+      level: 'info',
+      message: 'connected',
+    });
+
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        area: 'debug-control',
+        message: 'connected',
+      }),
+    );
+
+    unsubscribe();
   });
 });
