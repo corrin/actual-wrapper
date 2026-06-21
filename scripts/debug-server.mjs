@@ -98,7 +98,7 @@ const server = http.createServer((request, response) => {
 
 server.on('upgrade', (request, socket) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
-  if (url.pathname !== '/ws') {
+  if (url.pathname !== '/ws' && url.pathname !== '/ws/') {
     socket.destroy();
     return;
   }
