@@ -42,5 +42,12 @@ target 'ActualWrapper' do
         build_configuration.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] = definitions.uniq
       end
     end
+
+    fmt_base_header = File.join(__dir__, 'Pods', 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base_header)
+      contents = File.read(fmt_base_header)
+      patched_contents = contents.gsub('#  define FMT_USE_CONSTEVAL 1', '#  define FMT_USE_CONSTEVAL 0')
+      File.write(fmt_base_header, patched_contents) if patched_contents != contents
+    end
   end
 end
