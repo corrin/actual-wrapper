@@ -34,7 +34,13 @@ xcodebuild \
   -destination-timeout 120 \
   build >"$RUN_DIR/build.log" 2>&1
 
-APP_PATH="$(find "$HOME/Library/Developer/Xcode/DerivedData" -path "*/Build/Products/Debug-iphoneos/ActualWrapper.app" -type d | sort | tail -1)"
+APP_PATH="$(
+  find "$HOME/Library/Developer/Xcode/DerivedData" \
+    -path "*/Index.noindex/*" -prune -o \
+    -path "*/Build/Products/Debug-iphoneos/ActualWrapper.app" \
+    -type d \
+    -print | sort | tail -1
+)"
 if [ -z "$APP_PATH" ]; then
   echo "Built app not found" >&2
   exit 1
