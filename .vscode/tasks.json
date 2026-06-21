@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Actual Wrapper: Expo tunnel",
+      "type": "shell",
+      "command": "npx",
+      "args": ["expo", "start", "--tunnel", "--clear"],
+      "options": {
+        "env": {
+          "HOME": "/tmp/actual-wrapper-home"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "expo",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting project at",
+          "endsPattern": "(Tunnel ready|exp\\.direct|Logs for your project will appear below)"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    }
+  ]
+}
