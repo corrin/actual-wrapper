@@ -147,8 +147,14 @@ server.on('upgrade', (request, socket) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Actual Wrapper debug server listening on ws://${bestLanAddress()}:${port}/ws`);
-  console.log(`UI: http://${bestLanAddress()}:${port}/`);
+  const advertisedHost = process.env.DEBUG_PUBLIC_HOST || bestLanAddress();
+  console.log(`Actual Wrapper debug server listening on ws://${advertisedHost}:${port}/ws`);
+  console.log(`UI: http://${advertisedHost}:${port}/`);
+  console.log(
+    `Candidate URLs: ${candidateAddresses()
+      .map(address => `ws://${address}:${port}/ws`)
+      .join(', ')}`,
+  );
 });
 
 function readJson(request) {
@@ -255,14 +261,19 @@ function decodeWsFrames(buffer) {
 }
 
 function bestLanAddress() {
+  return candidateAddresses()[0] || '127.0.0.1';
+}
+
+function candidateAddresses() {
+  const candidates = [];
   for (const addresses of Object.values(os.networkInterfaces())) {
     for (const address of addresses || []) {
       if (address.family === 'IPv4' && !address.internal) {
-        return address.address;
+        candidates.push(address.address);
       }
     }
   }
-  return '127.0.0.1';
+  return candidates;
 }
 
 function renderPage() {

@@ -16,7 +16,15 @@ run_remote() {
 
 case "$COMMAND" in
   server)
-    exec node scripts/debug-server.mjs
+    if command -v node >/dev/null 2>&1; then
+      exec node scripts/debug-server.mjs
+    fi
+
+    if [ -x /opt/homebrew/bin/node ]; then
+      exec /opt/homebrew/bin/node scripts/debug-server.mjs
+    fi
+
+    exec zsh -lc 'node scripts/debug-server.mjs'
     ;;
   deploy)
     run_remote <<'REMOTE'
