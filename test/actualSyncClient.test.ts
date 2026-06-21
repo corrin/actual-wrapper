@@ -1,23 +1,7 @@
-import protobuf from 'protobufjs';
+import { create, SyncResponseSchema, toBinary } from '@actual-app/crdt';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createActualSyncClient } from '../src/sync/actualSyncClient';
-
-const SYNC_PROTO = `
-syntax = "proto3";
-message SyncResponse {
-  repeated MessageEnvelope messages = 1;
-  string merkle = 2;
-}
-message MessageEnvelope {
-  string timestamp = 1;
-  bool isEncrypted = 2;
-  bytes content = 3;
-}
-`;
-
-const root = protobuf.parse(SYNC_PROTO).root;
-const SyncResponse = root.lookupType('SyncResponse');
 
 describe('Actual sync client', () => {
   const fetchMock = vi.fn();
@@ -36,7 +20,10 @@ describe('Actual sync client', () => {
   it('posts a sync request to Actual using the stored token and first-run timestamp', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
-        SyncResponse.encode(SyncResponse.create({ messages: [] })).finish() as unknown as BodyInit,
+        toBinary(
+          SyncResponseSchema,
+          create(SyncResponseSchema, { messages: [] }),
+        ) as unknown as BodyInit,
         {
           headers: { 'Content-Type': 'application/actual-sync' },
           status: 200,

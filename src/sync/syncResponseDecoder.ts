@@ -1,4 +1,12 @@
-import protobuf from 'protobufjs';
+import {
+  create,
+  EncryptedDataSchema,
+  fromBinary,
+  MessageSchema,
+  SyncRequestSchema,
+  SyncResponseSchema,
+  toBinary,
+} from '@actual-app/crdt';
 
 import { deserializeActualValue } from './crdtValue';
 import type { ActualBudgetConfig, ActualSyncMessage } from '../types';
@@ -7,44 +15,6 @@ import {
   deriveActualEncryptionKey,
   type ActualEncryptionKey,
 } from './actualEncryption';
-
-const SYNC_PROTO = `
-syntax = "proto3";
-message EncryptedData {
-  bytes iv = 1;
-  bytes authTag = 2;
-  bytes data = 3;
-}
-message Message {
-  string dataset = 1;
-  string row = 2;
-  string column = 3;
-  string value = 4;
-}
-message MessageEnvelope {
-  string timestamp = 1;
-  bool isEncrypted = 2;
-  bytes content = 3;
-}
-message SyncResponse {
-  repeated MessageEnvelope messages = 1;
-  string merkle = 2;
-}
-message SyncRequest {
-  reserved 4;
-  repeated MessageEnvelope messages = 1;
-  string fileId = 2;
-  string groupId = 3;
-  string keyId = 5;
-  string since = 6;
-}
-`;
-
-const root = protobuf.parse(SYNC_PROTO).root;
-const EncryptedData = root.lookupType('EncryptedData');
-const SyncResponse = root.lookupType('SyncResponse');
-const SyncRequest = root.lookupType('SyncRequest');
-const Message = root.lookupType('Message');
 
 export type DecodedSyncResponse = {
   messages: ActualSyncMessage[];
@@ -57,15 +27,16 @@ export function encodeSyncRequest({
   budget: ActualBudgetConfig;
   since: string;
 }): Uint8Array {
-  return SyncRequest.encode(
-    SyncRequest.create({
+  return toBinary(
+    SyncRequestSchema,
+    create(SyncRequestSchema, {
       fileId: budget.fileId,
       groupId: budget.groupId,
       keyId: budget.encryptKeyId ?? '',
       messages: [],
       since,
     }),
-  ).finish();
+  );
 }
 
 export function decodeSyncResponse({
@@ -77,18 +48,12 @@ export function decodeSyncResponse({
   encryptionPassword: string | null;
   payload: Uint8Array;
 }): DecodedSyncResponse {
-  const decoded = SyncResponse.decode(payload) as unknown as {
-    messages?: Array<{
-      timestamp?: string;
-      isEncrypted?: boolean;
-      content?: Uint8Array;
-    }>;
-  };
+  const decoded = fromBinary(SyncResponseSchema, payload);
 
   const messages: ActualSyncMessage[] = [];
   const encryptionKey = buildEncryptionKey({ budget, encryptionPassword });
 
-  for (const envelope of decoded.messages ?? []) {
+  for (const envelope of decoded.messages) {
     if (!envelope.content) {
       continue;
     }
@@ -97,12 +62,7 @@ export function decodeSyncResponse({
       ? decryptEnvelopeContent(envelope.content, encryptionKey)
       : envelope.content;
 
-    const message = Message.decode(content) as unknown as {
-      dataset: string;
-      row: string;
-      column: string;
-      value: string;
-    };
+    const message = fromBinary(MessageSchema, content);
 
     messages.push({
       column: message.column,
@@ -164,13 +124,13 @@ function decryptEnvelopeContent(
     );
   }
 
-  const encryptedData = EncryptedData.decode(content) as unknown as {
-    authTag?: Uint8Array;
-    data?: Uint8Array;
-    iv?: Uint8Array;
-  };
+  const encryptedData = fromBinary(EncryptedDataSchema, content);
 
-  if (!encryptedData.authTag || !encryptedData.data || !encryptedData.iv) {
+  if (
+    encryptedData.authTag.length === 0 ||
+    encryptedData.data.length === 0 ||
+    encryptedData.iv.length === 0
+  ) {
     throw new Error('Actual sync response contains unreadable encrypted data.');
   }
 
