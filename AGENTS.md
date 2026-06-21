@@ -24,6 +24,8 @@ insufficient.
   only detect transactions that have already arrived in Actual.
 - Strictly avoid fallback semantics in this codebase. If a requirement cannot be
   met exactly, fail visibly instead of substituting weaker behavior.
+- Do not use `/tmp` for this repository. Keep build logs, scratch files, and
+  generated diagnostics inside the checkout or on the target host's checkout.
 - Prefer Actual's own screens and routes over custom native UI. Use bridge code
   only for wrapper settings, setup affordances, native permissions, and narrow
   handoffs that Actual cannot do itself.
