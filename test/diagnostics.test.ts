@@ -65,7 +65,7 @@ describe('diagnostics storage', () => {
           password: '[redacted]',
           status: 200,
           token: '[redacted]',
-          url: 'https://budget.example.com/account/login?token=%5Bredacted%5D&x=1',
+          url: 'https://budget.example.com/account/login?token=[redacted]&x=1',
         },
         level: 'info',
         message: 'response received',

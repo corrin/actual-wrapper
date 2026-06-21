@@ -130,17 +130,10 @@ function redactDiagnosticValue(value: DiagnosticPrimitive): DiagnosticPrimitive 
     return value;
   }
 
-  try {
-    const url = new URL(value);
-    for (const key of Array.from(url.searchParams.keys())) {
-      if (shouldRedactDiagnosticKey(key)) {
-        url.searchParams.set(key, '[redacted]');
-      }
-    }
-    return url.toString();
-  } catch {
-    return value.replace(/([?&][^=]*(?:token|secret|key)[^=]*=)[^&]*/gi, '$1[redacted]');
-  }
+  return value.replace(
+    /([?&][^=&#]*(?:token|secret|key)[^=&#]*=)[^&#]*/gi,
+    '$1[redacted]',
+  );
 }
 
 export function subscribeToDiagnosticEvents(
