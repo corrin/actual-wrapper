@@ -2,13 +2,13 @@
 
 ## Summary
 
-Build an iOS and Android app that wraps a user's existing Actual Budget server URL with as little custom code as possible. Use Expo React Native plus `react-native-webview` for the shell, and add only targeted native features where stock Actual cannot already cover the behavior.
+Build an iOS and Android app that wraps a user's existing Actual Budget server URL with as little custom code as possible. Use bare React Native plus `react-native-webview` for the shell, and add only targeted native features where stock Actual cannot already cover the behavior.
 
 The wrapper should be temporary glue around missing app capabilities: when Actual adds equivalent behavior upstream, prefer deleting wrapper code over maintaining parallel behavior. The next priority is to test whether stock Actual's experimental payee-location flow works cleanly inside the WebView, and whether a lightweight device-side sync poller can detect new transaction rows without running Actual's full client API or triggering bank sync.
 
 ## Implementation Chunks
 
-1. Project skeleton and WebView shell: Expo, TypeScript, setup screen, HTTPS URL validation, same-origin WebView navigation, external-link escape hatch.
+1. Project skeleton and WebView shell: bare React Native, TypeScript, setup screen, HTTPS URL validation, same-origin WebView navigation, external-link escape hatch.
 2. Stock Actual payee-location spike: enable Actual's experimental `payeeLocations` feature, create a known payee location through Actual's own UI, and verify nearby-payee behavior inside the wrapper WebView before adding native GPS code.
 3. Sync poller feasibility spike: fetch Actual sync messages without `@actual-app/api`, decode transaction rows, baseline known rows, notify only for new rows, never trigger bank sync.
 4. Notification UX and background scheduling: local notifications, best-effort background polling, foreground catch-up, notification tap routing.

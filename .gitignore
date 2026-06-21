@@ -1,8 +1,25 @@
 node_modules/
-.expo/
 dist/
 coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.tsbuildinfo
+
+# React Native native build outputs
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.xcworkspace/
+**/.xcode.env.local
+**/Pods/
+.gradle/
+local.properties
+ngrok.yml
+*.iml
+*.hprof
+.cxx/
+.kotlin/
+*.jsbundle
+.metro-health-check*

@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Actual Wrapper: Debug Server",
+      "type": "shell",
+      "command": "./scripts/remote-ios-debug.sh",
+      "args": ["server"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "actual-wrapper-debug-server",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Actual Wrapper debug server listening",
+          "endsPattern": "Actual Wrapper debug server listening"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Actual Wrapper: ngrok Tunnel",
+      "type": "shell",
+      "command": "ngrok start --config ${workspaceFolder}/ngrok.yml --all",
+      "hide": true,
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "actual-wrapper-ngrok",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "started tunnel"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Actual Wrapper: Debug Environment",
+      "dependsOn": [
+        "Actual Wrapper: Debug Server",
+        "Actual Wrapper: ngrok Tunnel"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    }
+  ]
+}
