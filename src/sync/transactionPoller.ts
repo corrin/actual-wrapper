@@ -1,7 +1,6 @@
-import * as Notifications from 'expo-notifications';
-
 import { EMPTY_SYNC_CURSOR, loadSyncCursor, saveSyncCursor } from '../storage/syncCursor';
 import type { ActualSyncMessage, SyncCursor } from '../types';
+import { displayLocalNotification } from '../notifications/localNotifications';
 import { detectNewTransactions } from './transactionDetector';
 
 export type ActualSyncClient = {
@@ -30,16 +29,13 @@ export async function pollForNewTransactions(
   };
 
   if (notifiedRows.length > 0) {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        body:
-          notifiedRows.length === 1
-            ? 'A new transaction is available in Actual.'
-            : `${notifiedRows.length} new transactions are available in Actual.`,
-        data: { route: '/accounts' },
-        title: 'Actual Budget',
-      },
-      trigger: null,
+    await displayLocalNotification({
+      body:
+        notifiedRows.length === 1
+          ? 'A new transaction is available in Actual.'
+          : `${notifiedRows.length} new transactions are available in Actual.`,
+      data: { route: '/accounts' },
+      title: 'Actual Budget',
     });
   }
 

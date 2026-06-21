@@ -18,15 +18,20 @@ npm start
 
 ## Chunk 1 iPhone Test
 
-Install Expo Go on the iPhone, then run:
+Start Metro:
 
 ```sh
-HOME=/tmp/actual-wrapper-home npx expo start --tunnel --clear
+npm start
 ```
 
-Scan the QR code from Expo Go. The app should open to the setup screen, accept
-an HTTPS Actual server URL, and then load the real Actual server full-screen
-inside the WebView.
+Install the app from the Mac with Xcode or:
+
+```sh
+npm run ios -- --device
+```
+
+The app should open to the setup screen, accept an HTTPS Actual server URL, and
+then load the real Actual server full-screen inside the WebView.
 
 On Actual's current-month budget page, use the injected top-right settings icon
 to view wrapper settings or reset the saved server URL.

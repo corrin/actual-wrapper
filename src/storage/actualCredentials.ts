@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as Keychain from 'react-native-keychain';
 
 export type ActualCredentials = {
   encryptionPassword: string | null;
@@ -12,24 +12,24 @@ export type ActualCredentialPresence = {
   hasToken: boolean;
 };
 
-const SECURE_STORE_OPTIONS: SecureStore.SecureStoreOptions = {
-  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-};
-
 const ENCRYPTION_PASSWORD_KEY = 'actual-wrapper.encryption-password';
 const SERVER_PASSWORD_KEY = 'actual-wrapper.server-password';
 const TOKEN_KEY = 'actual-wrapper.actual-token';
 
 async function getSecureItem(key: string): Promise<string | null> {
-  return SecureStore.getItemAsync(key, SECURE_STORE_OPTIONS);
+  const credentials = await Keychain.getGenericPassword({ service: key });
+  return credentials ? credentials.password : null;
 }
 
 async function setSecureItem(key: string, value: string): Promise<void> {
-  await SecureStore.setItemAsync(key, value, SECURE_STORE_OPTIONS);
+  await Keychain.setGenericPassword('actual-wrapper', value, {
+    accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
+    service: key,
+  });
 }
 
 async function deleteSecureItem(key: string): Promise<void> {
-  await SecureStore.deleteItemAsync(key, SECURE_STORE_OPTIONS);
+  await Keychain.resetGenericPassword({ service: key });
 }
 
 export async function loadActualCredentials(): Promise<ActualCredentials | null> {

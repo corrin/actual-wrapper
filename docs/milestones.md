@@ -2,11 +2,11 @@
 
 ## Milestone 1: iPhone Shell
 
-Status: verified on iPhone with Expo Go SDK 54.
+Status: verified on iPhone during the original shell spike.
 
 Acceptance result:
 
-- App opens from the Expo tunnel in WSL.
+- App opens on an iPhone.
 - User can save an HTTPS Actual server URL.
 - Actual loads full-screen in the WebView.
 - User can log in and view a real budget.
@@ -14,20 +14,20 @@ Acceptance result:
 - The wrapper adds a top-right settings icon to Actual's current-month budget
   header for wrapper-only settings.
 
-Run command:
+Run Metro:
 
 ```sh
-HOME=/tmp/actual-wrapper-home npx expo start --tunnel --clear
+npm start
 ```
 
 If Metro is left running on port 8081:
 
 ```sh
 curl http://127.0.0.1:8081/status
-ps -ef | grep -E 'expo|ngrok|actual_wrapper'
+ps -ef | grep -E 'react-native|metro|actual_wrapper'
 ```
 
-Stop only the matching Expo/ngrok process for this project.
+Stop only the matching Metro process for this project.
 
 ## Milestone 2: Add Transaction Bridge
 

@@ -33,8 +33,9 @@ insufficient.
 
 ## Repo Shape
 
-- `App.tsx` is the Expo app entry and owns setup, WebView loading, settings, and
+- `App.tsx` owns setup, WebView loading, settings, and
   top-level state wiring.
+- `index.js` is the React Native app entrypoint.
 - `src/bridge/` contains JavaScript injected into Actual. Keep it defensive and
   covered by tests because it depends on Actual's DOM and route behavior.
 - `src/auth/`, `src/storage/`, `src/sync/`, and `src/background/` contain native
@@ -48,9 +49,8 @@ insufficient.
 
 - Use `npm test` for the unit test suite.
 - Use `npm run typecheck` before handing off code changes.
-- Use `npm start` for Expo development; the iPhone tunnel workflow documented in
-  `README.md` and `docs/milestones.md` is:
-  `HOME=/tmp/actual-wrapper-home npx expo start --tunnel --clear`.
+- Use `npm start` to run Metro for local React Native development.
+- Use `npm run ios` or Xcode on the Mac to install the app on an iPhone.
 - For docs-only changes, automated tests are optional; read the changed document
   back for consistency.
 

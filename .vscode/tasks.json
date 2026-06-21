@@ -2,25 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Actual Wrapper: Expo tunnel",
+      "label": "Actual Wrapper: Metro",
       "type": "shell",
       "command": "npx",
-      "args": ["expo", "start", "--tunnel", "--clear"],
-      "options": {
-        "env": {
-          "HOME": "/tmp/actual-wrapper-home"
-        }
-      },
+      "args": ["react-native", "start", "--reset-cache"],
       "isBackground": true,
       "problemMatcher": {
-        "owner": "expo",
+        "owner": "metro",
         "pattern": {
           "regexp": "^$"
         },
         "background": {
           "activeOnStart": true,
           "beginsPattern": "Starting project at",
-          "endsPattern": "(Tunnel ready|exp\\.direct|Logs for your project will appear below)"
+          "endsPattern": "Welcome to Metro"
         }
       },
       "presentation": {

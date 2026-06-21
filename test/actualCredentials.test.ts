@@ -9,16 +9,23 @@ import {
 
 const secureStorage = new Map<string, string>();
 
-vi.mock('expo-secure-store', () => ({
-  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1,
-  async deleteItemAsync(key: string) {
-    secureStorage.delete(key);
+vi.mock('react-native-keychain', () => ({
+  ACCESSIBLE: {
+    AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'AfterFirstUnlockThisDeviceOnly',
   },
-  async getItemAsync(key: string) {
-    return secureStorage.get(key) ?? null;
+  async getGenericPassword({ service }: { service: string }) {
+    const password = secureStorage.get(service);
+    return password ? { password, username: 'actual-wrapper' } : false;
   },
-  async setItemAsync(key: string, value: string) {
-    secureStorage.set(key, value);
+  async resetGenericPassword({ service }: { service: string }) {
+    secureStorage.delete(service);
+  },
+  async setGenericPassword(
+    username: string,
+    password: string,
+    { service }: { service: string },
+  ) {
+    secureStorage.set(service, password);
   },
 }));
 

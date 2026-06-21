@@ -8,7 +8,7 @@ import {
 import type { ActualSyncMessage } from '../src/types';
 
 const mocks = vi.hoisted(() => ({
-  scheduleNotificationAsync: vi.fn(),
+  displayLocalNotification: vi.fn(),
   storage: new Map<string, string>(),
 }));
 
@@ -26,8 +26,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-vi.mock('expo-notifications', () => ({
-  scheduleNotificationAsync: mocks.scheduleNotificationAsync,
+vi.mock('../src/notifications/localNotifications', () => ({
+  displayLocalNotification: mocks.displayLocalNotification,
 }));
 
 function transactionMessage(row: string, column: string): ActualSyncMessage {
@@ -63,7 +63,7 @@ function syncClient(
 describe('pollForNewTransactions', () => {
   beforeEach(() => {
     mocks.storage.clear();
-    mocks.scheduleNotificationAsync.mockReset();
+    mocks.displayLocalNotification.mockReset();
   });
 
   it('sends one aggregate notification for distinct new transaction rows', async () => {
@@ -77,14 +77,11 @@ describe('pollForNewTransactions', () => {
     const result = await pollForNewTransactions(client);
 
     expect(result.notifiedRows).toEqual(['tx-1', 'tx-2']);
-    expect(mocks.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
-    expect(mocks.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: {
-        body: '2 new transactions are available in Actual.',
-        data: { route: '/accounts' },
-        title: 'Actual Budget',
-      },
-      trigger: null,
+    expect(mocks.displayLocalNotification).toHaveBeenCalledTimes(1);
+    expect(mocks.displayLocalNotification).toHaveBeenCalledWith({
+      body: '2 new transactions are available in Actual.',
+      data: { route: '/accounts' },
+      title: 'Actual Budget',
     });
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1', 'tx-2'],
@@ -95,13 +92,10 @@ describe('pollForNewTransactions', () => {
   it('uses singular copy for one new transaction row', async () => {
     await pollForNewTransactions(syncClient([transactionMessage('tx-1', 'amount')]));
 
-    expect(mocks.scheduleNotificationAsync).toHaveBeenCalledWith({
-      content: {
-        body: 'A new transaction is available in Actual.',
-        data: { route: '/accounts' },
-        title: 'Actual Budget',
-      },
-      trigger: null,
+    expect(mocks.displayLocalNotification).toHaveBeenCalledWith({
+      body: 'A new transaction is available in Actual.',
+      data: { route: '/accounts' },
+      title: 'Actual Budget',
     });
   });
 
@@ -119,7 +113,7 @@ describe('pollForNewTransactions', () => {
     const result = await pollForNewTransactions(client);
 
     expect(result.notifiedRows).toEqual([]);
-    expect(mocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
     expect(client.fetchMessagesSince).toHaveBeenCalledWith('100');
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1'],
@@ -137,7 +131,7 @@ describe('pollForNewTransactions', () => {
     );
 
     expect(result.notifiedRows).toEqual([]);
-    expect(mocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1', 'tx-2'],
       lastSyncTimestamp: '200',
@@ -155,7 +149,7 @@ describe('pollForNewTransactions', () => {
 
     await expect(pollForNewTransactions(client)).rejects.toThrow('decrypt-failure');
 
-    expect(mocks.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1'],
       lastSyncTimestamp: '100',
