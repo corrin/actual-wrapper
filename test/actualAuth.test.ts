@@ -117,4 +117,20 @@ describe('Actual auth client', () => {
       }),
     ).rejects.toThrow('invalid-password');
   });
+
+  it('reports non-JSON Actual responses with endpoint details', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('<!doctype html><title>Actual</title>', {
+        headers: { 'Content-Type': 'text/html' },
+        status: 200,
+        statusText: 'OK',
+      }),
+    );
+
+    await expect(
+      getActualLoginMethods('https://budget.example.com/'),
+    ).rejects.toThrow(
+      'Actual server returned a non-JSON response for https://budget.example.com/account/login-methods (200 OK, text/html): <!doctype html><title>Actual</title>',
+    );
+  });
 });

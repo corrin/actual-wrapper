@@ -19,13 +19,21 @@ type LoginResponse = {
   status?: string;
 };
 
-async function readActualJson<T>(response: Response): Promise<T> {
+async function readActualJson<T>(
+  response: Response,
+  context: string,
+): Promise<T> {
+  const body = await response.text();
   let payload: unknown = null;
 
   try {
-    payload = await response.json();
+    payload = JSON.parse(body);
   } catch {
-    throw new Error('Actual server returned an unreadable response.');
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const preview = body.replace(/\s+/g, ' ').slice(0, 120);
+    throw new Error(
+      `Actual server returned a non-JSON response for ${context} (${response.status} ${response.statusText || 'unknown status'}, ${contentType}): ${preview || 'empty response'}`,
+    );
   }
 
   if (!response.ok) {
@@ -45,8 +53,12 @@ async function readActualJson<T>(response: Response): Promise<T> {
 export async function getActualLoginMethods(
   serverUrl: string,
 ): Promise<ActualLoginMethod[]> {
-  const response = await fetch(actualAccountUrl(serverUrl, '/login-methods'));
-  const payload = await readActualJson<LoginMethodsResponse>(response);
+  const loginMethodsUrl = actualAccountUrl(serverUrl, '/login-methods');
+  const response = await fetch(loginMethodsUrl);
+  const payload = await readActualJson<LoginMethodsResponse>(
+    response,
+    loginMethodsUrl,
+  );
 
   if (!Array.isArray(payload.methods)) {
     throw new Error('Actual server did not return login methods.');
@@ -71,7 +83,8 @@ export async function loginToActualWithPassword({
     throw new Error('This Actual server does not offer password login.');
   }
 
-  const response = await fetch(actualAccountUrl(serverUrl, '/login'), {
+  const loginUrl = actualAccountUrl(serverUrl, '/login');
+  const response = await fetch(loginUrl, {
     body: JSON.stringify({
       loginMethod: 'password',
       password,
@@ -81,7 +94,7 @@ export async function loginToActualWithPassword({
     },
     method: 'POST',
   });
-  const payload = await readActualJson<LoginResponse>(response);
+  const payload = await readActualJson<LoginResponse>(response, loginUrl);
 
   if (payload.status === 'error') {
     throw new Error(payload.reason || 'Actual login failed.');
