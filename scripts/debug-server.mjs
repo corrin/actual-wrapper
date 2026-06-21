@@ -29,7 +29,18 @@ function broadcastSse(type, payload) {
 }
 
 function sendWs(socket, payload) {
-  socket.write(encodeWsFrame(JSON.stringify(payload)));
+  try {
+    socket.write(encodeWsFrame(JSON.stringify(payload)));
+  } catch (error) {
+    phoneClients.delete(socket);
+    pushEvent({
+      direction: 'server',
+      message: 'dropped debug client after send failure',
+      payload: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 }
 
 function sendCommand(type, payload = {}) {
@@ -164,6 +175,16 @@ server.on('upgrade', (request, socket) => {
   socket.on('close', () => {
     phoneClients.delete(socket);
     pushEvent({ direction: 'phone', message: 'disconnected' });
+  });
+  socket.on('error', error => {
+    phoneClients.delete(socket);
+    pushEvent({
+      direction: 'phone',
+      message: 'socket error',
+      payload: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
   });
 });
 
