@@ -18,8 +18,8 @@ export function normalizeDebugServerUrl(input: string): string {
   }
 
   const parsed = new URL(trimmed);
-  if (parsed.protocol !== 'ws:') {
-    throw new Error('Debug server URL must use ws://.');
+  if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+    throw new Error('Debug server URL must use ws:// or wss://.');
   }
 
   parsed.hash = '';

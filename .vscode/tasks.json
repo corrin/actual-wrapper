@@ -5,7 +5,7 @@
       "label": "Actual Wrapper: Debug Server",
       "type": "shell",
       "command": "./scripts/remote-ios-debug.sh",
-      "args": ["server:mac"],
+      "args": ["server"],
       "isBackground": true,
       "problemMatcher": {
         "owner": "actual-wrapper-debug-server",
@@ -22,6 +22,37 @@
         "panel": "dedicated",
         "reveal": "always"
       }
+    },
+    {
+      "label": "Actual Wrapper: ngrok Tunnel",
+      "type": "shell",
+      "command": "node",
+      "args": ["scripts/debug-ngrok.mjs"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "actual-wrapper-ngrok",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting Actual Wrapper ngrok tunnel",
+          "endsPattern": "Actual Wrapper ngrok tunnel ready"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    },
+    {
+      "label": "Actual Wrapper: Debug Environment",
+      "dependsOn": [
+        "Actual Wrapper: Debug Server",
+        "Actual Wrapper: ngrok Tunnel"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
     }
   ]
 }

@@ -1,0 +1,8 @@
+version: "2"
+authtoken: YOUR_AUTH_TOKEN_HERE
+
+tunnels:
+  actual-wrapper-debug:
+    proto: http
+    addr: 35561
+    domain: actual-wrapper-debug.example.ngrok-free.app

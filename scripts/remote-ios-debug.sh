@@ -8,29 +8,19 @@ BRANCH="${IOS_BRANCH:-codex/install-phone-dev-build}"
 DEVICE_ID="${IOS_DEVICE_ID:-00008140-0018254A3CA2801C}"
 BUNDLE_ID="${IOS_BUNDLE_ID:-app.actualwrapper.mobile}"
 RUN_ID="${IOS_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+DEBUG_SERVER_URL="${ACTUAL_WRAPPER_DEBUG_SERVER_URL:-}"
 
 run_remote() {
   ssh "$REMOTE_HOST" \
-    "cd \"$REMOTE_REPO\" && IOS_BRANCH=\"$BRANCH\" IOS_DEVICE_ID=\"$DEVICE_ID\" IOS_BUNDLE_ID=\"$BUNDLE_ID\" IOS_RUN_ID=\"$RUN_ID\" bash -s"
+    "cd \"$REMOTE_REPO\" && IOS_BRANCH=\"$BRANCH\" IOS_DEVICE_ID=\"$DEVICE_ID\" IOS_BUNDLE_ID=\"$BUNDLE_ID\" IOS_RUN_ID=\"$RUN_ID\" ACTUAL_WRAPPER_DEBUG_SERVER_URL=\"$DEBUG_SERVER_URL\" bash -s"
 }
 
 case "$COMMAND" in
   server)
-    if command -v node >/dev/null 2>&1; then
-      exec node scripts/debug-server.mjs
-    fi
-
-    if [ -x /opt/homebrew/bin/node ]; then
-      exec /opt/homebrew/bin/node scripts/debug-server.mjs
-    fi
-
-    exec zsh -lc 'node scripts/debug-server.mjs'
-    ;;
-  server:mac)
-    exec ssh "$REMOTE_HOST" \
-      "cd \"$REMOTE_REPO\" && zsh -lc 'DEBUG_PUBLIC_HOST=\$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || hostname) node scripts/debug-server.mjs'"
+    exec node scripts/debug-server.mjs
     ;;
   deploy)
+    DEBUG_SERVER_URL="${DEBUG_SERVER_URL:-$(node scripts/resolve-debug-server-url.mjs --required)}"
     run_remote <<'REMOTE'
 set -euo pipefail
 
@@ -39,6 +29,10 @@ mkdir -p "$RUN_DIR"
 
 git fetch origin "$IOS_BRANCH" >"$RUN_DIR/git-fetch.log" 2>&1
 git reset --hard "origin/$IOS_BRANCH" >"$RUN_DIR/git-reset.log" 2>&1
+printf 'export const GENERATED_DEBUG_SERVER_URL = "%s";\n' "$ACTUAL_WRAPPER_DEBUG_SERVER_URL" \
+  >src/debug/generatedDebugServerUrl.ts
+printf 'Embedded debug server URL: %s\n' "$ACTUAL_WRAPPER_DEBUG_SERVER_URL" \
+  >"$RUN_DIR/debug-server-url.log"
 ./build/signing-probe/unlock-build-keychain.sh >"$RUN_DIR/keychain.log" 2>&1
 
 xcodebuild \
@@ -108,7 +102,7 @@ echo "Remote sysdiagnose artifacts: $RUN_DIR/sysdiagnose"
 REMOTE
     ;;
   *)
-    echo "Usage: $0 [server|server:mac|deploy|pull|sysdiagnose]" >&2
+    echo "Usage: $0 [server|deploy|pull|sysdiagnose]" >&2
     exit 2
     ;;
 esac

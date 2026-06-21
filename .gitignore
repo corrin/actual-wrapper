@@ -16,6 +16,7 @@ xcuserdata/
 **/Pods/
 .gradle/
 local.properties
+ngrok.yml
 *.iml
 *.hprof
 .cxx/
