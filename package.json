@@ -7,7 +7,6 @@
     "start": "react-native start",
     "android": "react-native run-android",
     "debug:server": "node scripts/debug-server.mjs",
-    "debug:tunnel": "node scripts/debug-ngrok.mjs",
     "debug:url": "node scripts/resolve-debug-server-url.mjs",
     "ios": "react-native run-ios",
     "test": "vitest run",

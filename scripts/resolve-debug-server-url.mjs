@@ -6,8 +6,7 @@ const required = process.argv.includes('--required');
 const configured =
   process.env.ACTUAL_WRAPPER_DEBUG_SERVER_URL ||
   process.env.DEBUG_SERVER_URL ||
-  (await readNgrokConfigUrl()) ||
-  (await readNgrokApiUrl());
+  (await readNgrokConfigUrl());
 
 if (!configured) {
   if (required) {
@@ -35,30 +34,6 @@ async function readNgrokConfigUrl() {
       return '';
     }
     throw error;
-  }
-}
-
-async function readNgrokApiUrl() {
-  const apiUrl = process.env.NGROK_API_URL || 'http://127.0.0.1:4040/api/tunnels';
-
-  try {
-    const response = await fetch(apiUrl);
-    if (!response.ok) {
-      return '';
-    }
-
-    const body = await response.json();
-    const tunnel = body.tunnels?.find(candidate => {
-      return (
-        candidate &&
-        typeof candidate.public_url === 'string' &&
-        candidate.public_url.startsWith('https://')
-      );
-    });
-
-    return tunnel?.public_url || '';
-  } catch {
-    return '';
   }
 }
 

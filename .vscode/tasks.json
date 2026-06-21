@@ -26,8 +26,8 @@
     {
       "label": "Actual Wrapper: ngrok Tunnel",
       "type": "shell",
-      "command": "node",
-      "args": ["scripts/debug-ngrok.mjs"],
+      "command": "ngrok start --config ${workspaceFolder}/ngrok.yml --all",
+      "hide": true,
       "isBackground": true,
       "problemMatcher": {
         "owner": "actual-wrapper-ngrok",
@@ -36,8 +36,8 @@
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "Starting Actual Wrapper ngrok tunnel",
-          "endsPattern": "Actual Wrapper ngrok tunnel ready"
+          "beginsPattern": ".",
+          "endsPattern": "started tunnel"
         }
       },
       "presentation": {

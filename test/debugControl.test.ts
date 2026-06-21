@@ -13,16 +13,16 @@ describe('debug control', () => {
     expect(normalizeDebugServerUrl('ws://example.com/ws')).toBe(
       'ws://example.com/ws',
     );
-    expect(normalizeDebugServerUrl('wss://example.ngrok-free.app/ws')).toBe(
-      'wss://example.ngrok-free.app/ws',
+    expect(normalizeDebugServerUrl('wss://actual-wrapper-corrin.ngrok-free.app/ws')).toBe(
+      'wss://actual-wrapper-corrin.ngrok-free.app/ws',
     );
     expect(
-      normalizeDebugServerUrl('wss://example.ngrok-free.app/ws/?token=debug-token'),
-    ).toBe('wss://example.ngrok-free.app/ws?token=debug-token');
+      normalizeDebugServerUrl('wss://actual-wrapper-corrin.ngrok-free.app/ws/?token=debug-token'),
+    ).toBe('wss://actual-wrapper-corrin.ngrok-free.app/ws?token=debug-token');
   });
 
   it('rejects non-websocket URLs', () => {
-    expect(() => normalizeDebugServerUrl('https://example.ngrok-free.app/ws')).toThrow(
+    expect(() => normalizeDebugServerUrl('https://actual-wrapper-corrin.ngrok-free.app/ws')).toThrow(
       'Debug server URL must use ws:// or wss://.',
     );
   });
