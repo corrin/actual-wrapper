@@ -20,13 +20,8 @@ export function createActualSyncClient({
       const since = lastSyncTimestamp ?? actualTimestampNow();
       const syncUrl = actualSyncUrl(serverUrl, '/sync');
       const requestBytes = encodeSyncRequest({ budget, since });
-      const requestBuffer = new ArrayBuffer(requestBytes.byteLength);
-      new Uint8Array(requestBuffer).set(requestBytes);
-      const body = new Blob([requestBuffer], {
-        type: 'application/actual-sync',
-      });
       const response = await fetch(syncUrl, {
-        body,
+        body: requestBytes as unknown as BodyInit,
         headers: {
           'Content-Type': 'application/actual-sync',
           'X-ACTUAL-TOKEN': token,
