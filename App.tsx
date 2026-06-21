@@ -139,6 +139,7 @@ export default function App() {
       setDraftEncryptionPassword('');
       setRequestedUrl(serverUrl);
     } catch (error) {
+      console.error('[ActualWrapperSetup]', error);
       Alert.alert(
         'Setup failed',
         error instanceof Error ? error.message : String(error),
