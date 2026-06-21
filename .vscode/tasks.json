@@ -2,20 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Actual Wrapper: Metro",
+      "label": "Actual Wrapper: Debug Server",
       "type": "shell",
-      "command": "npx",
-      "args": ["react-native", "start", "--reset-cache"],
+      "command": "./scripts/remote-ios-debug.sh",
+      "args": ["server"],
       "isBackground": true,
       "problemMatcher": {
-        "owner": "metro",
+        "owner": "actual-wrapper-debug-server",
         "pattern": {
           "regexp": "^$"
         },
         "background": {
           "activeOnStart": true,
-          "beginsPattern": "Starting project at",
-          "endsPattern": "Welcome to Metro"
+          "beginsPattern": "Actual Wrapper debug server listening",
+          "endsPattern": "Actual Wrapper debug server listening"
         }
       },
       "presentation": {

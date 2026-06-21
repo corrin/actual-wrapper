@@ -33,21 +33,20 @@ function sendWs(socket, payload) {
 function sendCommand(type, payload = {}) {
   const id = crypto.randomUUID();
   const command = { id, payload, type };
+  const connectedClients = phoneClients.size;
   for (const socket of phoneClients) {
     sendWs(socket, command);
   }
-  pushEvent({ direction: 'server-to-phone', message: 'command sent', payload: command });
-  return command;
+  pushEvent({
+    direction: 'server-to-phone',
+    message: connectedClients > 0 ? 'command sent' : 'no phone connected',
+    payload: { command, connectedClients },
+  });
+  return { ...command, connectedClients };
 }
 
 const server = http.createServer((request, response) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
-
-  if (!isAllowedRemote(request.socket.remoteAddress)) {
-    response.writeHead(403);
-    response.end('Debug server accepts localhost/private LAN clients only.');
-    return;
-  }
 
   if (request.method === 'GET' && url.pathname === '/') {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -98,11 +97,6 @@ const server = http.createServer((request, response) => {
 });
 
 server.on('upgrade', (request, socket) => {
-  if (!isAllowedRemote(socket.remoteAddress)) {
-    socket.destroy();
-    return;
-  }
-
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
   if (url.pathname !== '/ws') {
     socket.destroy();
@@ -260,25 +254,10 @@ function decodeWsFrames(buffer) {
   };
 }
 
-function isAllowedRemote(address) {
-  if (!address) {
-    return false;
-  }
-
-  const normalized = address.replace(/^::ffff:/, '');
-  return (
-    normalized === '::1' ||
-    normalized === '127.0.0.1' ||
-    normalized.startsWith('10.') ||
-    normalized.startsWith('192.168.') ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
-  );
-}
-
 function bestLanAddress() {
   for (const addresses of Object.values(os.networkInterfaces())) {
     for (const address of addresses || []) {
-      if (address.family === 'IPv4' && !address.internal && isAllowedRemote(address.address)) {
+      if (address.family === 'IPv4' && !address.internal) {
         return address.address;
       }
     }
