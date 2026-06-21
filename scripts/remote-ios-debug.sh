@@ -26,6 +26,10 @@ case "$COMMAND" in
 
     exec zsh -lc 'node scripts/debug-server.mjs'
     ;;
+  server:mac)
+    exec ssh "$REMOTE_HOST" \
+      "cd \"$REMOTE_REPO\" && zsh -lc 'DEBUG_PUBLIC_HOST=\$(ipconfig getifaddr en0 || ipconfig getifaddr en1 || hostname) node scripts/debug-server.mjs'"
+    ;;
   deploy)
     run_remote <<'REMOTE'
 set -euo pipefail
@@ -104,7 +108,7 @@ echo "Remote sysdiagnose artifacts: $RUN_DIR/sysdiagnose"
 REMOTE
     ;;
   *)
-    echo "Usage: $0 [server|deploy|pull|sysdiagnose]" >&2
+    echo "Usage: $0 [server|server:mac|deploy|pull|sysdiagnose]" >&2
     exit 2
     ;;
 esac

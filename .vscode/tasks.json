@@ -5,7 +5,7 @@
       "label": "Actual Wrapper: Debug Server",
       "type": "shell",
       "command": "./scripts/remote-ios-debug.sh",
-      "args": ["server"],
+      "args": ["server:mac"],
       "isBackground": true,
       "problemMatcher": {
         "owner": "actual-wrapper-debug-server",
