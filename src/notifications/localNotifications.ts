@@ -1,4 +1,7 @@
-import notifee, { AndroidImportance } from '@notifee/react-native';
+import notifee, {
+  AndroidImportance,
+  type NotificationSettings,
+} from '@notifee/react-native';
 import { Platform } from 'react-native';
 
 const TRANSACTION_CHANNEL_ID = 'actual-wrapper-transactions';
@@ -9,11 +12,16 @@ export type LocalNotification = {
   title: string;
 };
 
+export async function ensureNotificationPermission(): Promise<NotificationSettings> {
+  return notifee.requestPermission();
+}
+
 export async function displayLocalNotification({
   body,
   data,
   title,
-}: LocalNotification): Promise<void> {
+}: LocalNotification): Promise<NotificationSettings> {
+  const settings = await ensureNotificationPermission();
   const android = Platform.OS === 'android'
     ? {
         channelId: await ensureTransactionChannel(),
@@ -27,10 +35,15 @@ export async function displayLocalNotification({
     data,
     title,
   });
+  return settings;
 }
 
-export async function setApplicationBadgeCount(count: number): Promise<void> {
+export async function setApplicationBadgeCount(
+  count: number,
+): Promise<NotificationSettings> {
+  const settings = await ensureNotificationPermission();
   await notifee.setBadgeCount(count);
+  return settings;
 }
 
 async function ensureTransactionChannel(): Promise<string> {

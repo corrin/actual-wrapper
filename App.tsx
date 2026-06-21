@@ -438,18 +438,22 @@ export default function App() {
           return { url };
         }
         case 'test-notification':
-          await displayLocalNotification({
+          return {
+            displayed: true,
+            settings: await displayLocalNotification({
             body: 'Debug notification from Actual Wrapper.',
             title: 'Actual Wrapper debug',
-          });
-          return { displayed: true };
+            }),
+          };
         case 'set-badge': {
           const count = command.payload?.count;
           if (typeof count !== 'number' || count < 0) {
             throw new Error('set-badge requires payload.count >= 0.');
           }
-          await setApplicationBadgeCount(count);
-          return { count };
+          return {
+            count,
+            settings: await setApplicationBadgeCount(count),
+          };
         }
         case 'run-auth-probe': {
           if (!config) {
