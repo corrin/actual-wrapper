@@ -1,12 +1,4 @@
-import {
-  create,
-  EncryptedDataSchema,
-  fromBinary,
-  MessageSchema,
-  SyncRequestSchema,
-  SyncResponseSchema,
-  toBinary,
-} from '@actual-app/crdt';
+import protobuf from 'protobufjs';
 import { describe, expect, it } from 'vitest';
 import { gcm } from '@noble/ciphers/aes.js';
 
@@ -18,6 +10,44 @@ import {
 import { deriveActualEncryptionKey } from '../src/sync/actualEncryption';
 import type { ActualBudgetConfig } from '../src/types';
 
+const SYNC_PROTO = `
+syntax = "proto3";
+message EncryptedData {
+  bytes iv = 1;
+  bytes authTag = 2;
+  bytes data = 3;
+}
+message Message {
+  string dataset = 1;
+  string row = 2;
+  string column = 3;
+  string value = 4;
+}
+message MessageEnvelope {
+  string timestamp = 1;
+  bool isEncrypted = 2;
+  bytes content = 3;
+}
+message SyncResponse {
+  repeated MessageEnvelope messages = 1;
+  string merkle = 2;
+}
+message SyncRequest {
+  reserved 4;
+  repeated MessageEnvelope messages = 1;
+  string fileId = 2;
+  string groupId = 3;
+  string keyId = 5;
+  string since = 6;
+}
+`;
+
+const root = protobuf.parse(SYNC_PROTO).root;
+const EncryptedData = root.lookupType('EncryptedData');
+const Message = root.lookupType('Message');
+const SyncResponse = root.lookupType('SyncResponse');
+const SyncRequest = root.lookupType('SyncRequest');
+
 const encryptedBudget: ActualBudgetConfig = {
   encryptKeyId: 'key-id',
   encryptSalt: 'salt-value',
@@ -26,17 +56,8 @@ const encryptedBudget: ActualBudgetConfig = {
   name: 'Budget',
 };
 
-function syncResponse(
-  messages: Array<{
-    content: Uint8Array;
-    isEncrypted: boolean;
-    timestamp: string;
-  }>,
-): Uint8Array {
-  return toBinary(
-    SyncResponseSchema,
-    create(SyncResponseSchema, { messages }),
-  );
+function syncResponse(messages: unknown[]): Uint8Array {
+  return SyncResponse.encode(SyncResponse.create({ messages })).finish();
 }
 
 function messageContent(value: {
@@ -45,7 +66,7 @@ function messageContent(value: {
   row: string;
   value: string;
 }): Uint8Array {
-  return toBinary(MessageSchema, create(MessageSchema, value));
+  return Message.encode(Message.create(value)).finish();
 }
 
 describe('decodeUnencryptedSyncResponse', () => {
@@ -55,7 +76,13 @@ describe('decodeUnencryptedSyncResponse', () => {
       since: '2026-06-21T00:00:00.000Z-0000-0000000000000000',
     });
 
-    const decoded = fromBinary(SyncRequestSchema, encoded);
+    const decoded = SyncRequest.decode(encoded) as unknown as {
+      fileId: string;
+      groupId: string;
+      keyId: string;
+      messages: unknown[];
+      since: string;
+    };
 
     expect(decoded).toMatchObject({
       fileId: 'file-id',
@@ -156,12 +183,11 @@ function encryptedMessageContent(value: {
   const encryptedWithTag = gcm(key.key, iv).encrypt(messageContent(value));
   const data = encryptedWithTag.slice(0, -16);
   const authTag = encryptedWithTag.slice(-16);
-  return toBinary(
-    EncryptedDataSchema,
-    create(EncryptedDataSchema, {
+  return EncryptedData.encode(
+    EncryptedData.create({
       authTag,
       data,
       iv,
     }),
-  );
+  ).finish();
 }
