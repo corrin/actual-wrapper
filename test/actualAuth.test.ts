@@ -5,6 +5,22 @@ import {
   loginToActualWithPassword,
 } from '../src/auth/actualAuth';
 
+const storage = new Map<string, string>();
+
+vi.mock('@react-native-async-storage/async-storage', () => ({
+  default: {
+    async getItem(key: string) {
+      return storage.get(key) ?? null;
+    },
+    async removeItem(key: string) {
+      storage.delete(key);
+    },
+    async setItem(key: string, value: string) {
+      storage.set(key, value);
+    },
+  },
+}));
+
 function jsonResponse(payload: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(payload), {
     headers: { 'Content-Type': 'application/json' },
@@ -17,6 +33,7 @@ describe('Actual auth client', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
+    storage.clear();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
   });

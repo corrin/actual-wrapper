@@ -17,6 +17,11 @@ import {
   type WebViewMessageEvent,
   type WebViewNavigation,
 } from 'react-native-webview';
+import type {
+  WebViewErrorEvent,
+  WebViewHttpErrorEvent,
+  WebViewNavigationEvent,
+} from 'react-native-webview/lib/WebViewTypes';
 
 import { getAddTransactionPrefill } from './src/bridge/addTransactionPreprocessor';
 import { buildActualBridgeScript } from './src/bridge/actualBridgeScript';
@@ -35,6 +40,7 @@ import {
   type ActualCredentials,
 } from './src/storage/actualCredentials';
 import {
+  appendDiagnosticEvent,
   clearLastSetupError,
   loadLastSetupError,
   saveLastSetupError,
@@ -83,6 +89,16 @@ export default function App() {
           storedConfig && storedCredentials ? storedConfig.serverUrl : null,
         );
         setLoading(false);
+        void appendDiagnosticEvent({
+          area: 'app',
+          data: {
+            hasConfig: Boolean(storedConfig),
+            hasCredentials: Boolean(storedCredentials),
+            hasSetupError: Boolean(storedSetupError),
+          },
+          level: 'info',
+          message: 'startup complete',
+        });
       },
     );
   }, []);
@@ -124,6 +140,16 @@ export default function App() {
     setSavingSetup(true);
     try {
       const serverUrl = normalizeServerUrl(draftUrl);
+      await appendDiagnosticEvent({
+        area: 'setup',
+        data: {
+          hasEncryptionPassword: draftEncryptionPassword.length > 0,
+          hasServerPassword: draftPassword.length > 0,
+          serverUrl,
+        },
+        level: 'info',
+        message: 'setup submitted',
+      });
       const serverPassword = draftPassword;
       const encryptionPassword =
         draftEncryptionPassword.length > 0 ? draftEncryptionPassword : null;
@@ -153,18 +179,31 @@ export default function App() {
       setDraftPassword('');
       setDraftEncryptionPassword('');
       setRequestedUrl(serverUrl);
+      await appendDiagnosticEvent({
+        area: 'setup',
+        data: {
+          serverUrl,
+        },
+        level: 'info',
+        message: 'setup saved',
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ActualWrapperSetup]', message);
+      await appendDiagnosticEvent({
+        area: 'setup',
+        data: {
+          error: message,
+        },
+        level: 'error',
+        message: 'setup failed',
+      });
       await saveLastSetupError(message);
       setLastSetupError({
         message,
         timestamp: new Date().toISOString(),
       });
-      Alert.alert(
-        'Setup failed',
-        message,
-      );
+      Alert.alert('Setup failed', message);
     } finally {
       setSavingSetup(false);
     }
@@ -173,9 +212,25 @@ export default function App() {
   const shouldStartLoad = useCallback(
     (request: WebViewNavigation) => {
       if (!config || sameOrigin(config.serverUrl, request.url)) {
+        void appendDiagnosticEvent({
+          area: 'webview',
+          data: {
+            navigationUrl: request.url,
+          },
+          level: 'debug',
+          message: 'navigation allowed',
+        });
         return true;
       }
 
+      void appendDiagnosticEvent({
+        area: 'webview',
+        data: {
+          navigationUrl: request.url,
+        },
+        level: 'warn',
+        message: 'external navigation opened outside app',
+      });
       void Linking.openURL(request.url);
       return false;
     },
@@ -189,11 +244,80 @@ export default function App() {
     }
 
     if (message.type === 'actual-wrapper:app-settings-requested') {
+      void appendDiagnosticEvent({
+        area: 'bridge',
+        data: {
+          type: message.type,
+        },
+        level: 'info',
+        message: 'settings requested',
+      });
       setIsSettingsVisible(true);
       return;
     }
 
     console.info('[ActualWrapperBridge]', message.type, message.payload ?? {});
+    void appendDiagnosticEvent({
+      area: 'bridge',
+      data: {
+        type: message.type,
+      },
+      level: 'debug',
+      message: 'message received',
+    });
+  }, []);
+
+  const handleWebViewLoadStart = useCallback(
+    (event: WebViewNavigationEvent) => {
+      void appendDiagnosticEvent({
+        area: 'webview',
+        data: {
+          url: event.nativeEvent.url,
+        },
+        level: 'info',
+        message: 'load started',
+      });
+    },
+    [],
+  );
+
+  const handleWebViewLoadEnd = useCallback(
+    (event: WebViewNavigationEvent | WebViewErrorEvent) => {
+      void appendDiagnosticEvent({
+        area: 'webview',
+        data: {
+          url: event.nativeEvent.url,
+        },
+        level: 'info',
+        message: 'load ended',
+      });
+    },
+    [],
+  );
+
+  const handleWebViewError = useCallback((event: WebViewErrorEvent) => {
+    void appendDiagnosticEvent({
+      area: 'webview',
+      data: {
+        code: event.nativeEvent.code,
+        description: event.nativeEvent.description,
+        url: event.nativeEvent.url,
+      },
+      level: 'error',
+      message: 'load error',
+    });
+  }, []);
+
+  const handleWebViewHttpError = useCallback((event: WebViewHttpErrorEvent) => {
+    void appendDiagnosticEvent({
+      area: 'webview',
+      data: {
+        statusCode: event.nativeEvent.statusCode,
+        url: event.nativeEvent.url,
+      },
+      level: 'error',
+      message: 'http error',
+    });
   }, []);
 
   const resetSavedServer = useCallback(async () => {
@@ -298,6 +422,10 @@ export default function App() {
           allowsBackForwardNavigationGestures
           geolocationEnabled
           injectedJavaScriptBeforeContentLoaded={injectedScript}
+          onError={handleWebViewError}
+          onHttpError={handleWebViewHttpError}
+          onLoadEnd={handleWebViewLoadEnd}
+          onLoadStart={handleWebViewLoadStart}
           onMessage={handleBridgeMessage}
           onShouldStartLoadWithRequest={shouldStartLoad}
           ref={webViewRef}

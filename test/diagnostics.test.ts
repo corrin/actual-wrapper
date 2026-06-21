@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  appendDiagnosticEvent,
   clearLastSetupError,
+  loadDiagnosticEvents,
   loadLastSetupError,
   saveLastSetupError,
 } from '../src/storage/diagnostics';
@@ -40,5 +42,49 @@ describe('diagnostics storage', () => {
 
     await clearLastSetupError();
     await expect(loadLastSetupError()).resolves.toBeNull();
+  });
+
+  it('appends diagnostic events and redacts obvious secrets', async () => {
+    await appendDiagnosticEvent({
+      area: 'actual-auth',
+      data: {
+        password: 'server-password',
+        status: 200,
+        token: 'actual-token',
+        url: 'https://budget.example.com/account/login',
+      },
+      level: 'info',
+      message: 'response received',
+    });
+
+    await expect(loadDiagnosticEvents()).resolves.toMatchObject([
+      {
+        area: 'actual-auth',
+        data: {
+          password: '[redacted]',
+          status: 200,
+          token: '[redacted]',
+          url: 'https://budget.example.com/account/login',
+        },
+        level: 'info',
+        message: 'response received',
+      },
+    ]);
+  });
+
+  it('keeps only the most recent diagnostic events', async () => {
+    for (let index = 0; index < 205; index += 1) {
+      await appendDiagnosticEvent({
+        area: 'test',
+        data: { index },
+        level: 'debug',
+        message: 'event',
+      });
+    }
+
+    const events = await loadDiagnosticEvents();
+    expect(events).toHaveLength(200);
+    expect(events[0]?.data?.index).toBe(5);
+    expect(events[199]?.data?.index).toBe(204);
   });
 });
