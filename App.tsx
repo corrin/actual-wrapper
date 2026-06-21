@@ -5,6 +5,7 @@ import {
   Linking,
   Modal,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -25,22 +26,50 @@ import {
   loadAppConfig,
   saveAppConfig,
 } from './src/storage/appConfig';
+import {
+  clearActualCredentials,
+  loadActualCredentialPresence,
+  loadActualCredentials,
+  saveActualCredentials,
+  type ActualCredentialPresence,
+  type ActualCredentials,
+} from './src/storage/actualCredentials';
+import { buildActualAuthSeedScript } from './src/bridge/actualAuthSeedScript';
+import { loginToActualWithPassword } from './src/auth/actualAuth';
 import { normalizeServerUrl, sameOrigin } from './src/web/urlPolicy';
 import type { AppConfig } from './src/types';
 
 export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
+  const [credentials, setCredentials] = useState<ActualCredentials | null>(null);
+  const [credentialPresence, setCredentialPresence] =
+    useState<ActualCredentialPresence>({
+      hasEncryptionPassword: false,
+      hasServerPassword: false,
+      hasToken: false,
+    });
   const [draftUrl, setDraftUrl] = useState('');
+  const [draftPassword, setDraftPassword] = useState('');
+  const [draftEncryptionPassword, setDraftEncryptionPassword] = useState('');
   const [loading, setLoading] = useState(true);
+  const [savingSetup, setSavingSetup] = useState(false);
   const [requestedUrl, setRequestedUrl] = useState<string | null>(null);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   const webViewRef = useRef<WebView>(null);
 
   useEffect(() => {
-    void loadAppConfig().then(storedConfig => {
+    void Promise.all([
+      loadAppConfig(),
+      loadActualCredentials(),
+      loadActualCredentialPresence(),
+    ]).then(([storedConfig, storedCredentials, storedPresence]) => {
       setConfig(storedConfig);
+      setCredentials(storedCredentials);
+      setCredentialPresence(storedPresence);
       setDraftUrl(storedConfig?.serverUrl ?? '');
-      setRequestedUrl(storedConfig?.serverUrl ?? null);
+      setRequestedUrl(
+        storedConfig && storedCredentials ? storedConfig.serverUrl : null,
+      );
       setLoading(false);
     });
   }, []);
@@ -53,22 +82,71 @@ export default function App() {
     return requestedUrl;
   }, [config, requestedUrl]);
 
-  const bridgeScript = useMemo(
-    () => buildActualBridgeScript(getAddTransactionPrefill()),
-    [],
-  );
+  const injectedScript = useMemo(() => {
+    const scriptParts: string[] = [];
 
-  const persistServerUrl = useCallback(async () => {
+    if (config && credentials) {
+      scriptParts.push(
+        buildActualAuthSeedScript({
+          serverUrl: config.serverUrl,
+          token: credentials.token,
+        }),
+      );
+    }
+
+    scriptParts.push(
+      buildActualBridgeScript(getAddTransactionPrefill(), {
+        encryptionPassword: credentials?.encryptionPassword,
+      }),
+    );
+
+    return scriptParts.join('\n');
+  }, [config, credentials]);
+
+  const persistSetup = useCallback(async () => {
+    if (savingSetup) {
+      return;
+    }
+
+    setSavingSetup(true);
     try {
       const serverUrl = normalizeServerUrl(draftUrl);
-      const nextConfig = { serverUrl };
+      const serverPassword = draftPassword;
+      const encryptionPassword =
+        draftEncryptionPassword.length > 0 ? draftEncryptionPassword : null;
+      const token = await loginToActualWithPassword({
+        password: serverPassword,
+        serverUrl,
+      });
+      const nextConfig: AppConfig = { serverUrl };
+      const nextCredentials: ActualCredentials = {
+        encryptionPassword,
+        serverPassword,
+        token,
+      };
+
+      await saveActualCredentials(nextCredentials);
       await saveAppConfig(nextConfig);
+
       setConfig(nextConfig);
+      setCredentials(nextCredentials);
+      setCredentialPresence({
+        hasEncryptionPassword: Boolean(encryptionPassword),
+        hasServerPassword: true,
+        hasToken: true,
+      });
+      setDraftPassword('');
+      setDraftEncryptionPassword('');
       setRequestedUrl(serverUrl);
     } catch (error) {
-      Alert.alert('Invalid server URL', error instanceof Error ? error.message : String(error));
+      Alert.alert(
+        'Setup failed',
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setSavingSetup(false);
     }
-  }, [draftUrl]);
+  }, [draftEncryptionPassword, draftPassword, draftUrl, savingSetup]);
 
   const shouldStartLoad = useCallback(
     (request: WebViewNavigation) => {
@@ -97,30 +175,70 @@ export default function App() {
   }, []);
 
   const resetSavedServer = useCallback(async () => {
+    await clearActualCredentials();
     await clearAppConfig();
     setIsSettingsVisible(false);
     setConfig(null);
+    setCredentials(null);
+    setCredentialPresence({
+      hasEncryptionPassword: false,
+      hasServerPassword: false,
+      hasToken: false,
+    });
     setDraftUrl('');
+    setDraftPassword('');
+    setDraftEncryptionPassword('');
     setRequestedUrl(null);
   }, []);
 
   const setupContent = (
     <SafeAreaView style={styles.setup}>
       <StatusBar barStyle="dark-content" />
-      <Text style={styles.title}>Actual Wrapper</Text>
-      <Text style={styles.label}>Actual server URL</Text>
-      <TextInput
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        onChangeText={setDraftUrl}
-        placeholder="https://budget.example.com"
-        style={styles.input}
-        value={draftUrl}
-      />
-      <Pressable onPress={persistServerUrl} style={styles.primaryButton}>
-        <Text style={styles.primaryButtonText}>Save server</Text>
-      </Pressable>
+      <ScrollView
+        contentContainerStyle={styles.setupContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>Actual Wrapper</Text>
+        <Text style={styles.label}>Actual server URL</Text>
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          onChangeText={setDraftUrl}
+          placeholder="https://budget.example.com"
+          style={styles.input}
+          value={draftUrl}
+        />
+        <Text style={styles.label}>Actual server password</Text>
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={setDraftPassword}
+          placeholder="Server password"
+          secureTextEntry
+          style={styles.input}
+          value={draftPassword}
+        />
+        <Text style={styles.label}>Budget encryption password (optional)</Text>
+        <TextInput
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={setDraftEncryptionPassword}
+          placeholder="Leave blank if your budget is not encrypted"
+          secureTextEntry
+          style={styles.input}
+          value={draftEncryptionPassword}
+        />
+        <Pressable
+          disabled={savingSetup}
+          onPress={persistSetup}
+          style={[styles.primaryButton, savingSetup && styles.disabledButton]}
+        >
+          <Text style={styles.primaryButtonText}>
+            {savingSetup ? 'Checking Actual login...' : 'Save setup'}
+          </Text>
+        </Pressable>
+      </ScrollView>
     </SafeAreaView>
   );
 
@@ -134,7 +252,7 @@ export default function App() {
     );
   }
 
-  if (!config || !currentUrl) {
+  if (!config || !credentials || !currentUrl) {
     return <SafeAreaProvider>{setupContent}</SafeAreaProvider>;
   }
 
@@ -145,7 +263,7 @@ export default function App() {
         <WebView
           allowsBackForwardNavigationGestures
           geolocationEnabled
-          injectedJavaScriptBeforeContentLoaded={bridgeScript}
+          injectedJavaScriptBeforeContentLoaded={injectedScript}
           onMessage={handleBridgeMessage}
           onShouldStartLoadWithRequest={shouldStartLoad}
           ref={webViewRef}
@@ -168,12 +286,24 @@ export default function App() {
               <Text numberOfLines={2} style={styles.settingsValue}>
                 {config.serverUrl}
               </Text>
+              <Text style={styles.settingsLabel}>Stored credentials</Text>
+              <Text style={styles.settingsValue}>
+                Token: {credentialPresence.hasToken ? 'yes' : 'no'}
+              </Text>
+              <Text style={styles.settingsValue}>
+                Server password:{' '}
+                {credentialPresence.hasServerPassword ? 'yes' : 'no'}
+              </Text>
+              <Text style={styles.settingsValue}>
+                Encryption password:{' '}
+                {credentialPresence.hasEncryptionPassword ? 'yes' : 'no'}
+              </Text>
               <Pressable
                 onPress={resetSavedServer}
                 style={styles.destructiveButton}
               >
                 <Text style={styles.destructiveButtonText}>
-                  Reset saved server
+                  Reset app setup
                 </Text>
               </Pressable>
               <Pressable
@@ -199,6 +329,9 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f8fafc',
     flex: 1,
+  },
+  disabledButton: {
+    opacity: 0.65,
   },
   input: {
     borderColor: '#94a3b8',
@@ -226,6 +359,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
+    marginTop: 12,
   },
   primaryButton: {
     alignItems: 'center',
@@ -261,11 +395,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  setupContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+  },
   setup: {
     backgroundColor: '#f8fafc',
     flex: 1,
-    justifyContent: 'center',
-    padding: 24,
   },
   title: {
     color: '#0f172a',

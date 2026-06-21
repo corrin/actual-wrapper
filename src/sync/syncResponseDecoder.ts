@@ -33,7 +33,6 @@ const Message = root.lookupType('Message');
 
 export type DecodedSyncResponse = {
   messages: ActualSyncMessage[];
-  encryptedEnvelopeCount: number;
 };
 
 export function decodeUnencryptedSyncResponse(payload: Uint8Array): DecodedSyncResponse {
@@ -46,12 +45,12 @@ export function decodeUnencryptedSyncResponse(payload: Uint8Array): DecodedSyncR
   };
 
   const messages: ActualSyncMessage[] = [];
-  let encryptedEnvelopeCount = 0;
 
   for (const envelope of decoded.messages ?? []) {
     if (envelope.isEncrypted) {
-      encryptedEnvelopeCount += 1;
-      continue;
+      throw new Error(
+        'Actual sync response contains encrypted messages; decrypt before counting transactions.',
+      );
     }
 
     if (!envelope.content) {
@@ -74,5 +73,5 @@ export function decodeUnencryptedSyncResponse(payload: Uint8Array): DecodedSyncR
     });
   }
 
-  return { encryptedEnvelopeCount, messages };
+  return { messages };
 }

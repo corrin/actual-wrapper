@@ -1,8 +1,16 @@
 import type { AddTransactionPrefill } from './addTransactionPrefill';
 import { BRIDGE_MESSAGE_TYPES } from './messages';
 
-export function buildActualBridgeScript(prefill: AddTransactionPrefill): string {
+export type ActualBridgeOptions = {
+  encryptionPassword?: string | null;
+};
+
+export function buildActualBridgeScript(
+  prefill: AddTransactionPrefill,
+  options: ActualBridgeOptions = {},
+): string {
   const bridgeConfig = JSON.stringify({
+    encryptionPassword: options.encryptionPassword ?? null,
     messageTypes: BRIDGE_MESSAGE_TYPES,
     prefill,
   });
@@ -168,8 +176,55 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
     }
   }
 
+  function setNativeInputValue(input, value) {
+    var descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement && window.HTMLInputElement.prototype, 'value');
+    if (descriptor && descriptor.set) {
+      descriptor.set.call(input, value);
+    } else {
+      input.value = value;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function tryEncryptionUnlock() {
+    try {
+      if (!config.encryptionPassword || !window.document || !window.document.querySelectorAll) {
+        return;
+      }
+
+      var pageText = (window.document.body && window.document.body.textContent || '').toLowerCase();
+      if (
+        pageText.indexOf('unlock budget file') === -1 ||
+        pageText.indexOf('create key') !== -1
+      ) {
+        return;
+      }
+
+      var passwordInput = window.document.querySelector('input[type="password"]');
+      if (!passwordInput || passwordInput.__actualWrapperEncryptionFilled) {
+        return;
+      }
+
+      setNativeInputValue(passwordInput, config.encryptionPassword);
+      passwordInput.__actualWrapperEncryptionFilled = true;
+
+      var buttons = window.document.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i += 1) {
+        var button = buttons[i];
+        if ((button.textContent || '').toLowerCase().indexOf('unlock budget file') !== -1) {
+          button.click();
+          return;
+        }
+      }
+    } catch (error) {
+      post(config.messageTypes.bridgeError, { message: String(error) });
+    }
+  }
+
   function afterRouteChange() {
     setTimeout(ensureAppSettingsButton, 0);
+    setTimeout(tryEncryptionUnlock, 0);
   }
 
   function retryAppSettingsButton() {
@@ -212,6 +267,7 @@ export function buildActualBridgeScript(prefill: AddTransactionPrefill): string 
 
   post(config.messageTypes.bridgeInstalled, {});
   ensureAppSettingsButton();
+  tryEncryptionUnlock();
   setTimeout(retryAppSettingsButton, 500);
   return true;
 })();

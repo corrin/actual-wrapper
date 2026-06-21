@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeServerUrl, sameOrigin } from '../src/web/urlPolicy';
+import {
+  actualAccountUrl,
+  actualSyncUrl,
+  normalizeServerUrl,
+  sameOrigin,
+} from '../src/web/urlPolicy';
 
 describe('normalizeServerUrl', () => {
   it('accepts HTTPS URLs and strips search/hash', () => {
@@ -33,5 +38,22 @@ describe('sameOrigin', () => {
         'https://other.example.com/transactions/new',
       ),
     ).toBe(false);
+  });
+});
+
+describe('Actual server endpoint URLs', () => {
+  it('builds account and sync URLs at the Actual subpaths', () => {
+    expect(actualAccountUrl('https://budget.example.com/', '/login')).toBe(
+      'https://budget.example.com/account/login',
+    );
+    expect(actualSyncUrl('https://budget.example.com/', '/list-user-files')).toBe(
+      'https://budget.example.com/sync/list-user-files',
+    );
+  });
+
+  it('preserves subpath-hosted Actual servers', () => {
+    expect(actualAccountUrl('https://example.com/actual/', '/login')).toBe(
+      'https://example.com/actual/account/login',
+    );
   });
 });
