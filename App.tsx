@@ -66,12 +66,14 @@ import {
   type DebugClientMessage,
   type DebugCommand,
 } from './src/debug/debugControl';
+import { DEBUG_MODE_WARNING, isUnsafeDebugMode } from './src/debug/debugMode';
 import {
   displayLocalNotification,
   setApplicationBadgeCount,
 } from './src/notifications/localNotifications';
 
 export default function App() {
+  const unsafeDebugMode = isUnsafeDebugMode();
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [credentials, setCredentials] = useState<ActualCredentials | null>(null);
   const [credentialPresence, setCredentialPresence] =
@@ -90,6 +92,8 @@ export default function App() {
   const [debugServerUrl, setDebugServerUrl] = useState<string | null>(null);
   const [draftDebugServerUrl, setDraftDebugServerUrl] = useState('');
   const [debugReconnectAttempt, setDebugReconnectAttempt] = useState(0);
+  const [launchWarningVisible, setLaunchWarningVisible] =
+    useState(unsafeDebugMode);
   const [lastSetupError, setLastSetupError] = useState<SetupDiagnostic | null>(
     null,
   );
@@ -135,6 +139,20 @@ export default function App() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    if (!unsafeDebugMode) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setLaunchWarningVisible(false);
+    }, 1500);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [unsafeDebugMode]);
 
   const currentUrl = useMemo(() => {
     if (!config || !requestedUrl) {
@@ -441,8 +459,8 @@ export default function App() {
           return {
             displayed: true,
             settings: await displayLocalNotification({
-            body: 'Debug notification from Actual Wrapper.',
-            title: 'Actual Wrapper debug',
+              body: 'Debug notification from Actual Wrapper.',
+              title: 'Actual Wrapper debug',
             }),
           };
         case 'set-badge': {
@@ -475,7 +493,7 @@ export default function App() {
   );
 
   useEffect(() => {
-    if (!__DEV__ || !debugServerUrl) {
+    if (!unsafeDebugMode || !debugServerUrl) {
       return;
     }
 
@@ -609,7 +627,13 @@ export default function App() {
       }
       socket.close();
     };
-  }, [debugReconnectAttempt, debugServerUrl, getDebugState, runDebugCommand]);
+  }, [
+    debugReconnectAttempt,
+    debugServerUrl,
+    getDebugState,
+    runDebugCommand,
+    unsafeDebugMode,
+  ]);
 
   const setupContent = (
     <SafeAreaView style={styles.setup}>
@@ -659,7 +683,7 @@ export default function App() {
             </Text>
           </>
         ) : null}
-        {__DEV__ ? (
+        {unsafeDebugMode ? (
           <>
             <Text style={styles.diagnosticTitle}>Debug control</Text>
             <TextInput
@@ -694,11 +718,14 @@ export default function App() {
     </SafeAreaView>
   );
 
-  if (loading) {
+  if (loading || launchWarningVisible) {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={styles.centered}>
           <ActivityIndicator />
+          {unsafeDebugMode ? (
+            <Text style={styles.debugLaunchWarning}>{DEBUG_MODE_WARNING}</Text>
+          ) : null}
         </SafeAreaView>
       </SafeAreaProvider>
     );
@@ -764,7 +791,7 @@ export default function App() {
                   </Text>
                 </>
               ) : null}
-              {__DEV__ ? (
+              {unsafeDebugMode ? (
                 <>
                   <Text style={styles.settingsLabel}>Debug control</Text>
                   <TextInput
@@ -821,6 +848,17 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f8fafc',
     flex: 1,
+  },
+  debugLaunchWarning: {
+    backgroundColor: '#b91c1c',
+    borderRadius: 6,
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '900',
+    marginTop: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    textAlign: 'center',
   },
   disabledButton: {
     opacity: 0.65,
