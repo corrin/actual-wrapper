@@ -29,6 +29,7 @@
       "expo-secure-store",
       "expo-location",
       "expo-notifications",
+      "./plugins/withoutPushNotifications",
       "expo-background-task"
     ],
     "extra": {
