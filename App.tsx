@@ -34,6 +34,12 @@ import {
   type ActualCredentialPresence,
   type ActualCredentials,
 } from './src/storage/actualCredentials';
+import {
+  clearLastSetupError,
+  loadLastSetupError,
+  saveLastSetupError,
+  type SetupDiagnostic,
+} from './src/storage/diagnostics';
 import { buildActualAuthSeedScript } from './src/bridge/actualAuthSeedScript';
 import { loginToActualWithPassword } from './src/auth/actualAuth';
 import { normalizeServerUrl, sameOrigin } from './src/web/urlPolicy';
@@ -55,6 +61,9 @@ export default function App() {
   const [savingSetup, setSavingSetup] = useState(false);
   const [requestedUrl, setRequestedUrl] = useState<string | null>(null);
   const [isSettingsVisible, setIsSettingsVisible] = useState(false);
+  const [lastSetupError, setLastSetupError] = useState<SetupDiagnostic | null>(
+    null,
+  );
   const webViewRef = useRef<WebView>(null);
 
   useEffect(() => {
@@ -62,16 +71,20 @@ export default function App() {
       loadAppConfig(),
       loadActualCredentials(),
       loadActualCredentialPresence(),
-    ]).then(([storedConfig, storedCredentials, storedPresence]) => {
-      setConfig(storedConfig);
-      setCredentials(storedCredentials);
-      setCredentialPresence(storedPresence);
-      setDraftUrl(storedConfig?.serverUrl ?? '');
-      setRequestedUrl(
-        storedConfig && storedCredentials ? storedConfig.serverUrl : null,
-      );
-      setLoading(false);
-    });
+      loadLastSetupError(),
+    ]).then(
+      ([storedConfig, storedCredentials, storedPresence, storedSetupError]) => {
+        setConfig(storedConfig);
+        setCredentials(storedCredentials);
+        setCredentialPresence(storedPresence);
+        setLastSetupError(storedSetupError);
+        setDraftUrl(storedConfig?.serverUrl ?? '');
+        setRequestedUrl(
+          storedConfig && storedCredentials ? storedConfig.serverUrl : null,
+        );
+        setLoading(false);
+      },
+    );
   }, []);
 
   const currentUrl = useMemo(() => {
@@ -127,9 +140,11 @@ export default function App() {
 
       await saveActualCredentials(nextCredentials);
       await saveAppConfig(nextConfig);
+      await clearLastSetupError();
 
       setConfig(nextConfig);
       setCredentials(nextCredentials);
+      setLastSetupError(null);
       setCredentialPresence({
         hasEncryptionPassword: Boolean(encryptionPassword),
         hasServerPassword: true,
@@ -139,10 +154,16 @@ export default function App() {
       setDraftEncryptionPassword('');
       setRequestedUrl(serverUrl);
     } catch (error) {
-      console.error('[ActualWrapperSetup]', error);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[ActualWrapperSetup]', message);
+      await saveLastSetupError(message);
+      setLastSetupError({
+        message,
+        timestamp: new Date().toISOString(),
+      });
       Alert.alert(
         'Setup failed',
-        error instanceof Error ? error.message : String(error),
+        message,
       );
     } finally {
       setSavingSetup(false);
@@ -178,9 +199,11 @@ export default function App() {
   const resetSavedServer = useCallback(async () => {
     await clearActualCredentials();
     await clearAppConfig();
+    await clearLastSetupError();
     setIsSettingsVisible(false);
     setConfig(null);
     setCredentials(null);
+    setLastSetupError(null);
     setCredentialPresence({
       hasEncryptionPassword: false,
       hasServerPassword: false,
@@ -230,6 +253,16 @@ export default function App() {
           style={styles.input}
           value={draftEncryptionPassword}
         />
+        {lastSetupError ? (
+          <>
+            <Text style={styles.diagnosticTitle}>Last setup error</Text>
+            <Text selectable style={styles.diagnosticText}>
+              {lastSetupError.timestamp}
+              {'\n'}
+              {lastSetupError.message}
+            </Text>
+          </>
+        ) : null}
         <Pressable
           disabled={savingSetup}
           onPress={persistSetup}
@@ -299,6 +332,16 @@ export default function App() {
                 Encryption password:{' '}
                 {credentialPresence.hasEncryptionPassword ? 'yes' : 'no'}
               </Text>
+              {lastSetupError ? (
+                <>
+                  <Text style={styles.settingsLabel}>Last setup error</Text>
+                  <Text selectable style={styles.diagnosticText}>
+                    {lastSetupError.timestamp}
+                    {'\n'}
+                    {lastSetupError.message}
+                  </Text>
+                </>
+              ) : null}
               <Pressable
                 onPress={resetSavedServer}
                 style={styles.destructiveButton}
@@ -333,6 +376,22 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.65,
+  },
+  diagnosticText: {
+    backgroundColor: '#e2e8f0',
+    borderRadius: 6,
+    color: '#0f172a',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 8,
+    padding: 10,
+  },
+  diagnosticTitle: {
+    color: '#7f1d1d',
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 6,
+    marginTop: 14,
   },
   input: {
     borderColor: '#94a3b8',
