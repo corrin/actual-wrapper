@@ -9,6 +9,7 @@ import type { ActualSyncMessage } from '../src/types';
 
 const mocks = vi.hoisted(() => ({
   displayLocalNotification: vi.fn(),
+  setApplicationBadgeCount: vi.fn(),
   storage: new Map<string, string>(),
 }));
 
@@ -28,6 +29,7 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 
 vi.mock('../src/notifications/localNotifications', () => ({
   displayLocalNotification: mocks.displayLocalNotification,
+  setApplicationBadgeCount: mocks.setApplicationBadgeCount,
 }));
 
 function transactionMessage(row: string, column: string): ActualSyncMessage {
@@ -64,6 +66,7 @@ describe('pollForNewTransactions', () => {
   beforeEach(() => {
     mocks.storage.clear();
     mocks.displayLocalNotification.mockReset();
+    mocks.setApplicationBadgeCount.mockReset();
   });
 
   it('sends one aggregate notification for distinct new transaction rows', async () => {
@@ -76,7 +79,31 @@ describe('pollForNewTransactions', () => {
 
     const result = await pollForNewTransactions(client);
 
+    expect(result.notifiedRows).toEqual([]);
+    expect(mocks.setApplicationBadgeCount).toHaveBeenCalledWith(0);
+    expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
+    await expect(loadSyncCursor()).resolves.toEqual({
+      knownTransactionRows: ['tx-1', 'tx-2'],
+      lastSyncTimestamp: '200',
+    });
+  });
+
+  it('sends one aggregate notification for distinct new transaction rows after baseline', async () => {
+    await saveSyncCursor({
+      knownTransactionRows: [],
+      lastSyncTimestamp: '100',
+    });
+    const client = syncClient([
+      transactionMessage('tx-1', 'amount'),
+      transactionMessage('tx-1', 'payee'),
+      transactionMessage('tx-2', 'amount'),
+      payeeMessage('payee-1'),
+    ]);
+
+    const result = await pollForNewTransactions(client);
+
     expect(result.notifiedRows).toEqual(['tx-1', 'tx-2']);
+    expect(mocks.setApplicationBadgeCount).toHaveBeenCalledWith(2);
     expect(mocks.displayLocalNotification).toHaveBeenCalledTimes(1);
     expect(mocks.displayLocalNotification).toHaveBeenCalledWith({
       body: '2 new transactions are available in Actual.',
@@ -90,6 +117,10 @@ describe('pollForNewTransactions', () => {
   });
 
   it('uses singular copy for one new transaction row', async () => {
+    await saveSyncCursor({
+      knownTransactionRows: [],
+      lastSyncTimestamp: '100',
+    });
     await pollForNewTransactions(syncClient([transactionMessage('tx-1', 'amount')]));
 
     expect(mocks.displayLocalNotification).toHaveBeenCalledWith({
@@ -113,6 +144,7 @@ describe('pollForNewTransactions', () => {
     const result = await pollForNewTransactions(client);
 
     expect(result.notifiedRows).toEqual([]);
+    expect(mocks.setApplicationBadgeCount).toHaveBeenCalledWith(0);
     expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
     expect(client.fetchMessagesSince).toHaveBeenCalledWith('100');
     await expect(loadSyncCursor()).resolves.toEqual({
@@ -131,6 +163,7 @@ describe('pollForNewTransactions', () => {
     );
 
     expect(result.notifiedRows).toEqual([]);
+    expect(mocks.setApplicationBadgeCount).toHaveBeenCalledWith(0);
     expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1', 'tx-2'],
@@ -150,6 +183,7 @@ describe('pollForNewTransactions', () => {
     await expect(pollForNewTransactions(client)).rejects.toThrow('decrypt-failure');
 
     expect(mocks.displayLocalNotification).not.toHaveBeenCalled();
+    expect(mocks.setApplicationBadgeCount).not.toHaveBeenCalled();
     await expect(loadSyncCursor()).resolves.toEqual({
       knownTransactionRows: ['tx-1'],
       lastSyncTimestamp: '100',

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Linking,
   Modal,
   Pressable,
@@ -54,6 +55,9 @@ import {
   getActualLoginMethods,
   loginToActualWithPassword,
 } from './src/auth/actualAuth';
+import { loadSingleActualBudgetConfig } from './src/sync/actualBudgetClient';
+import { createActualSyncClient } from './src/sync/actualSyncClient';
+import { pollForNewTransactions } from './src/sync/transactionPoller';
 import { normalizeServerUrl, sameOrigin } from './src/web/urlPolicy';
 import type { AppConfig } from './src/types';
 import {
@@ -71,6 +75,7 @@ import {
   displayLocalNotification,
   setApplicationBadgeCount,
 } from './src/notifications/localNotifications';
+import { resetSyncCursor } from './src/storage/syncCursor';
 
 export default function App() {
   const unsafeDebugMode = isUnsafeDebugMode();
@@ -99,6 +104,7 @@ export default function App() {
   );
   const webViewRef = useRef<WebView>(null);
   const debugSocketRef = useRef<WebSocket | null>(null);
+  const pollInFlightRef = useRef(false);
 
   useEffect(() => {
     void Promise.all([
@@ -115,7 +121,8 @@ export default function App() {
         storedSetupError,
         storedDebugServerUrl,
       ]) => {
-        setConfig(storedConfig);
+        const usableConfig = hasBudgetConfig(storedConfig) ? storedConfig : null;
+        setConfig(usableConfig);
         setCredentials(storedCredentials);
         setCredentialPresence(storedPresence);
         setLastSetupError(storedSetupError);
@@ -123,15 +130,16 @@ export default function App() {
         setDraftDebugServerUrl(storedDebugServerUrl ?? '');
         setDraftUrl(storedConfig?.serverUrl ?? '');
         setRequestedUrl(
-          storedConfig && storedCredentials ? storedConfig.serverUrl : null,
+          usableConfig && storedCredentials ? usableConfig.serverUrl : null,
         );
         setLoading(false);
         void appendDiagnosticEvent({
           area: 'app',
           data: {
-            hasConfig: Boolean(storedConfig),
+            hasConfig: Boolean(usableConfig),
             hasCredentials: Boolean(storedCredentials),
             hasSetupError: Boolean(storedSetupError),
+            ignoredIncompleteConfig: Boolean(storedConfig && !usableConfig),
           },
           level: 'info',
           message: 'startup complete',
@@ -208,7 +216,12 @@ export default function App() {
         password: serverPassword,
         serverUrl,
       });
-      const nextConfig: AppConfig = { serverUrl };
+      const budget = await loadSingleActualBudgetConfig({
+        encryptionPassword,
+        serverUrl,
+        token,
+      });
+      const nextConfig: AppConfig = { budget, serverUrl };
       const nextCredentials: ActualCredentials = {
         encryptionPassword,
         serverPassword,
@@ -218,6 +231,7 @@ export default function App() {
       await saveActualCredentials(nextCredentials);
       await saveAppConfig(nextConfig);
       await clearLastSetupError();
+      await resetSyncCursor();
 
       setConfig(nextConfig);
       setCredentials(nextCredentials);
@@ -233,6 +247,10 @@ export default function App() {
       await appendDiagnosticEvent({
         area: 'setup',
         data: {
+          budgetEncrypted: Boolean(budget.encryptKeyId),
+          budgetFileId: budget.fileId,
+          budgetGroupId: budget.groupId,
+          budgetName: budget.name,
           serverUrl,
         },
         level: 'info',
@@ -396,6 +414,7 @@ export default function App() {
     await clearActualCredentials();
     await clearAppConfig();
     await clearLastSetupError();
+    await resetSyncCursor();
     setIsSettingsVisible(false);
     setConfig(null);
     setCredentials(null);
@@ -411,8 +430,85 @@ export default function App() {
     setRequestedUrl(null);
   }, []);
 
+  const pollTransactions = useCallback(
+    async (source: string) => {
+      if (!config || !credentials) {
+        return { skipped: true };
+      }
+      if (pollInFlightRef.current) {
+        return { skipped: true, reason: 'poll already running' };
+      }
+
+      pollInFlightRef.current = true;
+      try {
+        const result = await pollForNewTransactions(
+          createActualSyncClient({
+            budget: config.budget,
+            encryptionPassword: credentials.encryptionPassword,
+            serverUrl: config.serverUrl,
+            token: credentials.token,
+          }),
+        );
+        await appendDiagnosticEvent({
+          area: 'notifications',
+          data: {
+            notifiedCount: result.notifiedRows.length,
+            source,
+          },
+          level: 'info',
+          message: 'transaction poll completed',
+        });
+        return {
+          nextCursor: result.nextCursor,
+          notifiedCount: result.notifiedRows.length,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await appendDiagnosticEvent({
+          area: 'notifications',
+          data: {
+            error: message,
+            source,
+          },
+          level: 'error',
+          message: 'transaction poll failed',
+        });
+        throw error;
+      } finally {
+        pollInFlightRef.current = false;
+      }
+    },
+    [config, credentials],
+  );
+
+  useEffect(() => {
+    if (!config || !credentials) {
+      return;
+    }
+
+    void pollTransactions('startup');
+
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        void pollTransactions('app-state-active');
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [config, credentials, pollTransactions]);
+
   const getDebugState = useCallback(
     () => ({
+      budget: config
+        ? {
+            encrypted: Boolean(config.budget.encryptKeyId),
+            fileId: config.budget.fileId,
+            groupId: config.budget.groupId,
+            name: config.budget.name,
+          }
+        : null,
       currentUrl,
       hasConfig: Boolean(config),
       hasCredentials: Boolean(credentials),
@@ -473,6 +569,8 @@ export default function App() {
             settings: await setApplicationBadgeCount(count),
           };
         }
+        case 'poll-transactions':
+          return pollTransactions('debug-command');
         case 'run-auth-probe': {
           if (!config) {
             throw new Error('No Actual server is configured.');
@@ -489,7 +587,7 @@ export default function App() {
           throw new Error(`Unknown debug command: ${command.type}`);
       }
     },
-    [config, getDebugState, resetSavedServer],
+    [config, getDebugState, pollTransactions, resetSavedServer],
   );
 
   useEffect(() => {
@@ -836,6 +934,16 @@ export default function App() {
         </Modal>
       </SafeAreaView>
     </SafeAreaProvider>
+  );
+}
+
+function hasBudgetConfig(config: AppConfig | null): config is AppConfig {
+  return Boolean(
+    config &&
+      config.budget &&
+      typeof config.budget.fileId === 'string' &&
+      typeof config.budget.groupId === 'string' &&
+      typeof config.budget.name === 'string',
   );
 }
 

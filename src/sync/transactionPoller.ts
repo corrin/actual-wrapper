@@ -1,6 +1,9 @@
-import { EMPTY_SYNC_CURSOR, loadSyncCursor, saveSyncCursor } from '../storage/syncCursor';
+import { loadSyncCursor, saveSyncCursor } from '../storage/syncCursor';
 import type { ActualSyncMessage, SyncCursor } from '../types';
-import { displayLocalNotification } from '../notifications/localNotifications';
+import {
+  displayLocalNotification,
+  setApplicationBadgeCount,
+} from '../notifications/localNotifications';
 import { detectNewTransactions } from './transactionDetector';
 
 export type ActualSyncClient = {
@@ -19,14 +22,17 @@ export async function pollForNewTransactions(
   client: ActualSyncClient,
   options: { baselineOnly?: boolean } = {},
 ): Promise<TransactionPollResult> {
-  const cursor = await loadSyncCursor().catch(() => EMPTY_SYNC_CURSOR);
+  const cursor = await loadSyncCursor();
   const response = await client.fetchMessagesSince(cursor.lastSyncTimestamp);
   const detection = detectNewTransactions(cursor, response.messages);
-  const notifiedRows = options.baselineOnly ? [] : detection.newTransactionRows;
+  const baselineOnly = options.baselineOnly ?? cursor.lastSyncTimestamp === null;
+  const notifiedRows = baselineOnly ? [] : detection.newTransactionRows;
   const nextCursor = {
     knownTransactionRows: detection.knownTransactionRows,
     lastSyncTimestamp: response.nextSyncTimestamp ?? cursor.lastSyncTimestamp,
   };
+
+  await setApplicationBadgeCount(notifiedRows.length);
 
   if (notifiedRows.length > 0) {
     await displayLocalNotification({

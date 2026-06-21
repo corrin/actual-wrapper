@@ -361,6 +361,7 @@ function renderPage() {
     <button data-command="reload-webview">Reload WebView</button>
     <button data-command="reset-setup">Reset setup</button>
     <button data-command="test-notification">Test notification</button>
+    <button data-command="poll-transactions">Poll transactions</button>
     <button id="badge">Set badge</button>
     <button id="navigate">Navigate WebView</button>
     <button data-command="run-auth-probe">Auth probe</button>

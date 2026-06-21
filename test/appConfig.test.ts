@@ -32,15 +32,40 @@ describe('appConfig storage', () => {
   });
 
   it('saves and loads app config', async () => {
-    await saveAppConfig({ serverUrl: 'https://budget.example.com/' });
+    await saveAppConfig({
+      budget: {
+        encryptKeyId: null,
+        encryptSalt: null,
+        fileId: 'file-id',
+        groupId: 'group-id',
+        name: 'Budget',
+      },
+      serverUrl: 'https://budget.example.com/',
+    });
 
     await expect(loadAppConfig()).resolves.toEqual({
+      budget: {
+        encryptKeyId: null,
+        encryptSalt: null,
+        fileId: 'file-id',
+        groupId: 'group-id',
+        name: 'Budget',
+      },
       serverUrl: 'https://budget.example.com/',
     });
   });
 
   it('clears app config', async () => {
-    await saveAppConfig({ serverUrl: 'https://budget.example.com/' });
+    await saveAppConfig({
+      budget: {
+        encryptKeyId: null,
+        encryptSalt: null,
+        fileId: 'file-id',
+        groupId: 'group-id',
+        name: 'Budget',
+      },
+      serverUrl: 'https://budget.example.com/',
+    });
     await clearAppConfig();
 
     await expect(loadAppConfig()).resolves.toBeNull();
