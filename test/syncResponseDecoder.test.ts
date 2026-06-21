@@ -3,7 +3,7 @@ import {
   MessageSchema,
   SyncRequestSchema,
   SyncResponseSchema,
-} from '@actual-app/crdt';
+} from '../src/sync/actualCrdt';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 import { gcm } from '@noble/ciphers/aes.js';
