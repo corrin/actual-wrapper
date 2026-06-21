@@ -1,8 +1,8 @@
+import { SyncResponseSchema } from '@actual-app/crdt';
 import { create, toBinary } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createActualSyncClient } from '../src/sync/actualSyncClient';
-import { SyncResponseSchema } from '../src/sync/actualCrdt';
 
 describe('Actual sync client', () => {
   const fetchMock = vi.fn();

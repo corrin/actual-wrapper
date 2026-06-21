@@ -1,11 +1,11 @@
-import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
-
 import {
   EncryptedDataSchema,
   MessageSchema,
   SyncRequestSchema,
   SyncResponseSchema,
-} from './actualCrdt';
+} from '@actual-app/crdt';
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
+
 import { deserializeActualValue } from './crdtValue';
 import type { ActualBudgetConfig, ActualSyncMessage } from '../types';
 import {
