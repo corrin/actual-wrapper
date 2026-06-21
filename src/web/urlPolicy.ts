@@ -35,8 +35,7 @@ function joinActualUrl(serverUrl: string, prefix: string, path: string): string 
   const parsed = new URL(serverUrl);
   const basePath = parsed.pathname.replace(/\/+$/, '');
   const nextPath = path.startsWith('/') ? path : `/${path}`;
-  parsed.pathname = `${basePath}${prefix}${nextPath}`.replace(/\/{2,}/g, '/');
-  parsed.search = '';
-  parsed.hash = '';
-  return parsed.toString();
+  const joinedPath = `${basePath}${prefix}${nextPath}`.replace(/\/{2,}/g, '/');
+  const port = parsed.port ? `:${parsed.port}` : '';
+  return `${parsed.protocol}//${parsed.hostname}${port}${joinedPath}`;
 }
