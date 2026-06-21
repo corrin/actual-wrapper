@@ -23,7 +23,6 @@ export function normalizeDebugServerUrl(input: string): string {
   }
 
   parsed.hash = '';
-  parsed.search = '';
   parsed.pathname = parsed.pathname.replace(/\/+$/, '') || '/';
   return parsed.toString();
 }

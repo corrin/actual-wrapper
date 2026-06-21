@@ -8,7 +8,7 @@ import {
 describe('debug control', () => {
   it('allows websocket URLs without network policy checks', () => {
     expect(normalizeDebugServerUrl(' ws://192.168.1.10:35561/ws?x=1 ')).toBe(
-      'ws://192.168.1.10:35561/ws',
+      'ws://192.168.1.10:35561/ws?x=1',
     );
     expect(normalizeDebugServerUrl('ws://example.com/ws')).toBe(
       'ws://example.com/ws',
@@ -16,6 +16,9 @@ describe('debug control', () => {
     expect(normalizeDebugServerUrl('wss://example.ngrok-free.app/ws')).toBe(
       'wss://example.ngrok-free.app/ws',
     );
+    expect(
+      normalizeDebugServerUrl('wss://example.ngrok-free.app/ws/?token=debug-token'),
+    ).toBe('wss://example.ngrok-free.app/ws?token=debug-token');
   });
 
   it('rejects non-websocket URLs', () => {

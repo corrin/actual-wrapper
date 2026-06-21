@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { access } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
+import { getDebugToken } from './debug-token.mjs';
 
 const port = Number(process.env.DEBUG_PORT || process.env.PORT || 35561);
 const apiUrl = process.env.NGROK_API_URL || 'http://127.0.0.1:4040/api/tunnels';
@@ -41,15 +42,21 @@ process.on('SIGTERM', () => stop('SIGTERM'));
 
 const publicUrl = await waitForTunnel();
 ready = true;
+const debugToken = await getDebugToken();
 
 const tunnel = new URL(publicUrl);
 tunnel.protocol = 'wss:';
 tunnel.pathname = '/ws';
-tunnel.search = '';
+tunnel.searchParams.set('token', debugToken);
 tunnel.hash = '';
 
+const ui = new URL(publicUrl);
+ui.pathname = '/';
+ui.searchParams.set('token', debugToken);
+ui.hash = '';
+
 console.log('Actual Wrapper ngrok tunnel ready');
-console.log(`UI: ${publicUrl}/`);
+console.log(`UI: ${ui.toString()}`);
 console.log(`Phone WebSocket URL: ${tunnel.toString()}`);
 
 function stop(signal) {

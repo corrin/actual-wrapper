@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
+import { getDebugToken } from './debug-token.mjs';
 
 const required = process.argv.includes('--required');
 const configured =
@@ -17,7 +18,7 @@ if (!configured) {
   process.exit(0);
 }
 
-console.log(normalizeWebSocketUrl(configured));
+console.log(await normalizeWebSocketUrl(configured));
 
 async function readNgrokConfigUrl() {
   try {
@@ -61,7 +62,7 @@ async function readNgrokApiUrl() {
   }
 }
 
-function normalizeWebSocketUrl(value) {
+async function normalizeWebSocketUrl(value) {
   const parsed = new URL(value);
   if (parsed.protocol === 'https:') {
     parsed.protocol = 'wss:';
@@ -72,7 +73,7 @@ function normalizeWebSocketUrl(value) {
   }
 
   parsed.pathname = '/ws';
-  parsed.search = '';
+  parsed.searchParams.set('token', await getDebugToken());
   parsed.hash = '';
   return parsed.toString();
 }

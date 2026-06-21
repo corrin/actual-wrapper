@@ -2,9 +2,11 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import os from 'node:os';
+import { getDebugToken } from './debug-token.mjs';
 
 const port = Number(process.env.DEBUG_PORT || process.env.PORT || 35561);
 const host = process.env.DEBUG_HOST || '0.0.0.0';
+const debugToken = await getDebugToken();
 const phoneClients = new Set();
 const sseClients = new Set();
 const recentEvents = [];
@@ -49,12 +51,22 @@ const server = http.createServer((request, response) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
 
   if (request.method === 'GET' && url.pathname === '/') {
+    if (!isAuthorized(url)) {
+      rejectHttp(response);
+      return;
+    }
+
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     response.end(renderPage());
     return;
   }
 
   if (request.method === 'GET' && url.pathname === '/events') {
+    if (!isAuthorized(url)) {
+      rejectHttp(response);
+      return;
+    }
+
     response.writeHead(200, {
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
@@ -69,6 +81,11 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === 'POST' && url.pathname === '/command') {
+    if (!isAuthorized(url)) {
+      rejectHttp(response);
+      return;
+    }
+
     readJson(request)
       .then(body => {
         const type = typeof body.type === 'string' ? body.type : '';
@@ -99,6 +116,10 @@ const server = http.createServer((request, response) => {
 server.on('upgrade', (request, socket) => {
   const url = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
   if (url.pathname !== '/ws' && url.pathname !== '/ws/') {
+    socket.destroy();
+    return;
+  }
+  if (!isAuthorized(url)) {
     socket.destroy();
     return;
   }
@@ -148,14 +169,35 @@ server.on('upgrade', (request, socket) => {
 
 server.listen(port, host, () => {
   const advertisedHost = process.env.DEBUG_PUBLIC_HOST || bestLanAddress();
-  console.log(`Actual Wrapper debug server listening on ws://${advertisedHost}:${port}/ws`);
-  console.log(`UI: http://${advertisedHost}:${port}/`);
+  console.log(`Actual Wrapper debug server listening on ${debugWsUrl(advertisedHost)}`);
+  console.log(`UI: ${debugUiUrl(advertisedHost)}`);
   console.log(
     `Candidate URLs: ${candidateAddresses()
-      .map(address => `ws://${address}:${port}/ws`)
+      .map(address => debugWsUrl(address))
       .join(', ')}`,
   );
 });
+
+function isAuthorized(url) {
+  return url.searchParams.get('token') === debugToken;
+}
+
+function rejectHttp(response) {
+  response.writeHead(401, { 'Content-Type': 'text/plain; charset=utf-8' });
+  response.end('Unauthorized.');
+}
+
+function debugWsUrl(address) {
+  const url = new URL(`ws://${address}:${port}/ws`);
+  url.searchParams.set('token', debugToken);
+  return url.toString();
+}
+
+function debugUiUrl(address) {
+  const url = new URL(`http://${address}:${port}/`);
+  url.searchParams.set('token', debugToken);
+  return url.toString();
+}
 
 function readJson(request) {
   return new Promise((resolve, reject) => {
@@ -310,7 +352,7 @@ function renderPage() {
       log.scrollTop = log.scrollHeight;
     }
     async function send(type, payload) {
-      const response = await fetch('/command', {
+      const response = await fetch('/command' + location.search, {
         body: JSON.stringify({ type, payload }),
         headers: { 'Content-Type': 'application/json' },
         method: 'POST'
@@ -328,7 +370,7 @@ function renderPage() {
       const url = prompt('WebView URL');
       if (url) send('navigate-webview', { url });
     });
-    const events = new EventSource('/events');
+    const events = new EventSource('/events' + location.search);
     events.addEventListener('snapshot', event => append({ snapshot: JSON.parse(event.data) }));
     events.addEventListener('event', event => append(JSON.parse(event.data)));
   </script>

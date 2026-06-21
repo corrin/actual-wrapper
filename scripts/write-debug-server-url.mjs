@@ -5,8 +5,15 @@ import path from 'node:path';
 const url = process.argv[2] || '';
 const destination = path.join('src', 'debug', 'generatedDebugServerUrl.ts');
 
-if (url && !/^wss?:\/\/[^/]+\/ws$/.test(url)) {
-  throw new Error(`Debug server URL must look like ws(s)://host/ws: ${url}`);
+if (url) {
+  const parsed = new URL(url);
+  if (
+    (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') ||
+    parsed.pathname.replace(/\/+$/, '') !== '/ws' ||
+    !parsed.searchParams.get('token')
+  ) {
+    throw new Error(`Debug server URL must look like ws(s)://host/ws?token=...: ${url}`);
+  }
 }
 
 await mkdir(path.dirname(destination), { recursive: true });

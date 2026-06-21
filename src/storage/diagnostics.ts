@@ -113,7 +113,9 @@ function redactDiagnosticData(
   const redacted: Record<string, DiagnosticPrimitive> = {};
 
   for (const [key, value] of Object.entries(data)) {
-    redacted[key] = shouldRedactDiagnosticKey(key) ? '[redacted]' : value;
+    redacted[key] = shouldRedactDiagnosticKey(key)
+      ? '[redacted]'
+      : redactDiagnosticValue(value);
   }
 
   return redacted;
@@ -121,6 +123,24 @@ function redactDiagnosticData(
 
 function shouldRedactDiagnosticKey(key: string): boolean {
   return /password|token|secret|key/i.test(key);
+}
+
+function redactDiagnosticValue(value: DiagnosticPrimitive): DiagnosticPrimitive {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    const url = new URL(value);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (shouldRedactDiagnosticKey(key)) {
+        url.searchParams.set(key, '[redacted]');
+      }
+    }
+    return url.toString();
+  } catch {
+    return value.replace(/([?&][^=]*(?:token|secret|key)[^=]*=)[^&]*/gi, '$1[redacted]');
+  }
 }
 
 export function subscribeToDiagnosticEvents(
