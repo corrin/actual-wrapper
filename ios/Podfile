@@ -47,7 +47,10 @@ target 'ActualWrapper' do
     if File.exist?(fmt_base_header)
       contents = File.read(fmt_base_header)
       patched_contents = contents.gsub('#  define FMT_USE_CONSTEVAL 1', '#  define FMT_USE_CONSTEVAL 0')
-      File.write(fmt_base_header, patched_contents) if patched_contents != contents
+      if patched_contents != contents
+        File.chmod(0644, fmt_base_header)
+        File.write(fmt_base_header, patched_contents)
+      end
     end
   end
 end
